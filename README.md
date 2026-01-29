@@ -4,6 +4,8 @@ Run [Moltbot](https://molt.bot/) personal AI assistant in a [Cloudflare Sandbox]
 
 > **Experimental:** This is a proof of concept demonstrating that Moltbot can run in Cloudflare Sandbox. It is not officially supported and may break without notice. Use at your own risk.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/moltworker)
+
 ![moltworker architecture](./assets/logo.png)
 
 ## Requirements
