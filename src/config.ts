@@ -11,5 +11,5 @@ export const STARTUP_TIMEOUT_MS = 180_000;
 /** Mount path for R2 persistent storage inside the container */
 export const R2_MOUNT_PATH = '/data/moltbot';
 
-/** R2 bucket name for persistent storage */
-export const R2_BUCKET_NAME = 'moltbot-data';
+/** R2 bucket name for persistent storage - using super-moltbot-data for SuperMoltWorker */
+export const R2_BUCKET_NAME = 'super-moltbot-data';
