@@ -1,0 +1,38 @@
+.memory-panel {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.panel-intro {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f0ff 100%);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.intro-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.intro-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1a1a1a;
+}
+
+.intro-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .panel-intro {
+    flex-direction: column;
+    text-align: center;
+  }
+}

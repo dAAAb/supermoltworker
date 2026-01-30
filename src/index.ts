@@ -27,7 +27,7 @@ import type { AppEnv, MoltbotEnv } from './types';
 import { MOLTBOT_PORT } from './config';
 import { createAccessMiddleware } from './auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, syncToR2 } from './gateway';
-import { publicRoutes, api, adminUi, debug, cdp } from './routes';
+import { publicRoutes, api, adminUi, debug, cdp, notificationWs } from './routes';
 import loadingPageHtml from './assets/loading.html';
 import configErrorHtml from './assets/config-error.html';
 
@@ -207,6 +207,10 @@ app.use('/debug/*', async (c, next) => {
   return next();
 });
 app.route('/debug', debug);
+
+// Mount WebSocket notification routes (protected by Cloudflare Access)
+// SuperMoltWorker: Real-time notifications for evolution requests, conflicts, etc.
+app.route('/ws', notificationWs);
 
 // =============================================================================
 // CATCH-ALL: Proxy to Moltbot gateway

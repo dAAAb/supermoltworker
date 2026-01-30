@@ -12,7 +12,13 @@ import {
   type DeviceListResponse,
   type StorageStatusResponse,
 } from '../api'
+import MemoryPanel from '../components/MemoryPanel'
+import HealthDashboard from '../components/HealthDashboard'
+import EvolutionPanel from '../components/EvolutionPanel'
+import ResetWizard from '../components/ResetWizard'
 import './AdminPage.css'
+
+type TabType = 'devices' | 'memory' | 'health' | 'evolution';
 
 // Small inline spinner for buttons
 function ButtonSpinner() {
@@ -20,6 +26,7 @@ function ButtonSpinner() {
 }
 
 export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState<TabType>('devices')
   const [pending, setPending] = useState<PendingDevice[]>([])
   const [paired, setPaired] = useState<PairedDevice[]>([])
   const [storageStatus, setStorageStatus] = useState<StorageStatusResponse | null>(null)
@@ -28,6 +35,7 @@ export default function AdminPage() {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [restartInProgress, setRestartInProgress] = useState(false)
   const [syncInProgress, setSyncInProgress] = useState(false)
+  const [showResetWizard, setShowResetWizard] = useState(false)
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -170,6 +178,34 @@ export default function AdminPage() {
 
   return (
     <div className="devices-page">
+      {/* Tab Navigation */}
+      <nav className="tab-nav">
+        <button
+          className={`tab-btn ${activeTab === 'devices' ? 'active' : ''}`}
+          onClick={() => setActiveTab('devices')}
+        >
+          Devices
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'memory' ? 'active' : ''}`}
+          onClick={() => setActiveTab('memory')}
+        >
+          Memory
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'health' ? 'active' : ''}`}
+          onClick={() => setActiveTab('health')}
+        >
+          Health
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'evolution' ? 'active' : ''}`}
+          onClick={() => setActiveTab('evolution')}
+        >
+          Evolution
+        </button>
+      </nav>
+
       {error && (
         <div className="error-banner">
           <span>{error}</span>
@@ -179,217 +215,265 @@ export default function AdminPage() {
         </div>
       )}
 
-      {storageStatus && !storageStatus.configured && (
-        <div className="warning-banner">
-          <div className="warning-content">
-            <strong>R2 Storage Not Configured</strong>
-            <p>
-              Paired devices and conversations will be lost when the container restarts.
-              To enable persistent storage, configure R2 credentials.
-              See the <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">README</a> for setup instructions.
-            </p>
-            {storageStatus.missing && (
-              <p className="missing-secrets">
-                Missing: {storageStatus.missing.join(', ')}
-              </p>
-            )}
-          </div>
-        </div>
+      {/* Memory Tab */}
+      {activeTab === 'memory' && (
+        <MemoryPanel onRestoreComplete={() => {
+          // Optionally refresh devices after restore
+          fetchDevices()
+        }} />
       )}
 
-      {storageStatus?.configured && (
-        <div className="success-banner">
-          <div className="storage-status">
-            <div className="storage-info">
-              <span>R2 storage is configured. Your data will persist across container restarts.</span>
-              <span className="last-sync">
-                Last backup: {formatSyncTime(storageStatus.lastSync)}
-              </span>
-            </div>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleSync}
-              disabled={syncInProgress}
-            >
-              {syncInProgress && <ButtonSpinner />}
-              {syncInProgress ? 'Syncing...' : 'Backup Now'}
-            </button>
-          </div>
-        </div>
+      {/* Health Tab */}
+      {activeTab === 'health' && (
+        <HealthDashboard />
       )}
 
-      <section className="devices-section gateway-section">
-        <div className="section-header">
-          <h2>Gateway Controls</h2>
-          <button
-            className="btn btn-danger"
-            onClick={handleRestartGateway}
-            disabled={restartInProgress}
-          >
-            {restartInProgress && <ButtonSpinner />}
-            {restartInProgress ? 'Restarting...' : 'Restart Gateway'}
-          </button>
-        </div>
-        <p className="hint">
-          Restart the gateway to apply configuration changes or recover from errors.
-          All connected clients will be temporarily disconnected.
-        </p>
-      </section>
-
-      {loading ? (
-        <div className="loading">
-          <div className="spinner"></div>
-          <p>Loading devices...</p>
-        </div>
-      ) : (
-        <>
-          <section className="devices-section">
-        <div className="section-header">
-          <h2>Pending Pairing Requests</h2>
-          <div className="header-actions">
-            {pending.length > 0 && (
-              <button
-                className="btn btn-primary"
-                onClick={handleApproveAll}
-                disabled={actionInProgress !== null}
-              >
-                {actionInProgress === 'all' && <ButtonSpinner />}
-                {actionInProgress === 'all' ? 'Approving...' : `Approve All (${pending.length})`}
-              </button>
-            )}
-            <button className="btn btn-secondary" onClick={fetchDevices} disabled={loading}>
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {pending.length === 0 ? (
-          <div className="empty-state">
-            <p>No pending pairing requests</p>
+      {/* Evolution Tab */}
+      {activeTab === 'evolution' && (
+        <div className="evolution-tab-content">
+          <EvolutionPanel onEvolutionChange={fetchDevices} />
+          <div className="reset-section">
+            <h3>完全重置</h3>
             <p className="hint">
-              Devices will appear here when they attempt to connect without being paired.
+              如果小龍蝦陷入無法恢復的狀態，可以使用完全重置功能將其恢復到初始狀態。
             </p>
+            <button
+              className="btn btn-danger"
+              onClick={() => setShowResetWizard(true)}
+            >
+              開啟重置精靈
+            </button>
           </div>
-        ) : (
-          <div className="devices-grid">
-            {pending.map((device) => (
-              <div key={device.requestId} className="device-card pending">
-                <div className="device-header">
-                  <span className="device-name">
-                    {device.displayName || device.deviceId || 'Unknown Device'}
-                  </span>
-                  <span className="device-badge pending">Pending</span>
-                </div>
-                <div className="device-details">
-                  {device.platform && (
-                    <div className="detail-row">
-                      <span className="label">Platform:</span>
-                      <span className="value">{device.platform}</span>
-                    </div>
-                  )}
-                  {device.clientId && (
-                    <div className="detail-row">
-                      <span className="label">Client:</span>
-                      <span className="value">{device.clientId}</span>
-                    </div>
-                  )}
-                  {device.clientMode && (
-                    <div className="detail-row">
-                      <span className="label">Mode:</span>
-                      <span className="value">{device.clientMode}</span>
-                    </div>
-                  )}
-                  {device.role && (
-                    <div className="detail-row">
-                      <span className="label">Role:</span>
-                      <span className="value">{device.role}</span>
-                    </div>
-                  )}
-                  {device.remoteIp && (
-                    <div className="detail-row">
-                      <span className="label">IP:</span>
-                      <span className="value">{device.remoteIp}</span>
-                    </div>
-                  )}
-                  <div className="detail-row">
-                    <span className="label">Requested:</span>
-                    <span className="value" title={formatTimestamp(device.ts)}>
-                      {formatTimeAgo(device.ts)}
-                    </span>
-                  </div>
-                </div>
-                <div className="device-actions">
-                  <button
-                    className="btn btn-success"
-                    onClick={() => handleApprove(device.requestId)}
-                    disabled={actionInProgress !== null}
-                  >
-                    {actionInProgress === device.requestId && <ButtonSpinner />}
-                    {actionInProgress === device.requestId ? 'Approving...' : 'Approve'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="devices-section">
-        <div className="section-header">
-          <h2>Paired Devices</h2>
         </div>
+      )}
 
-        {paired.length === 0 ? (
-          <div className="empty-state">
-            <p>No paired devices</p>
-          </div>
-        ) : (
-          <div className="devices-grid">
-            {paired.map((device, index) => (
-              <div key={device.deviceId || index} className="device-card paired">
-                <div className="device-header">
-                  <span className="device-name">
-                    {device.displayName || device.deviceId || 'Unknown Device'}
+      {/* Reset Wizard Modal */}
+      {showResetWizard && (
+        <ResetWizard
+          onComplete={() => {
+            setShowResetWizard(false)
+            fetchDevices()
+          }}
+          onCancel={() => setShowResetWizard(false)}
+        />
+      )}
+
+      {/* Devices Tab Content */}
+      {activeTab === 'devices' && (
+        <>
+          {storageStatus && !storageStatus.configured && (
+            <div className="warning-banner">
+              <div className="warning-content">
+                <strong>R2 Storage Not Configured</strong>
+                <p>
+                  Paired devices and conversations will be lost when the container restarts.
+                  To enable persistent storage, configure R2 credentials.
+                  See the <a href="https://github.com/cloudflare/moltworker" target="_blank" rel="noopener noreferrer">README</a> for setup instructions.
+                </p>
+                {storageStatus.missing && (
+                  <p className="missing-secrets">
+                    Missing: {storageStatus.missing.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {storageStatus?.configured && (
+            <div className="success-banner">
+              <div className="storage-status">
+                <div className="storage-info">
+                  <span>R2 storage is configured. Your data will persist across container restarts.</span>
+                  <span className="last-sync">
+                    Last backup: {formatSyncTime(storageStatus.lastSync)}
                   </span>
-                  <span className="device-badge paired">Paired</span>
                 </div>
-                <div className="device-details">
-                  {device.platform && (
-                    <div className="detail-row">
-                      <span className="label">Platform:</span>
-                      <span className="value">{device.platform}</span>
-                    </div>
-                  )}
-                  {device.clientId && (
-                    <div className="detail-row">
-                      <span className="label">Client:</span>
-                      <span className="value">{device.clientId}</span>
-                    </div>
-                  )}
-                  {device.clientMode && (
-                    <div className="detail-row">
-                      <span className="label">Mode:</span>
-                      <span className="value">{device.clientMode}</span>
-                    </div>
-                  )}
-                  {device.role && (
-                    <div className="detail-row">
-                      <span className="label">Role:</span>
-                      <span className="value">{device.role}</span>
-                    </div>
-                  )}
-                  <div className="detail-row">
-                    <span className="label">Paired:</span>
-                    <span className="value" title={formatTimestamp(device.approvedAtMs)}>
-                      {formatTimeAgo(device.approvedAtMs)}
-                    </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleSync}
+                  disabled={syncInProgress}
+                >
+                  {syncInProgress && <ButtonSpinner />}
+                  {syncInProgress ? 'Syncing...' : 'Backup Now'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <section className="devices-section gateway-section">
+            <div className="section-header">
+              <h2>Gateway Controls</h2>
+              <button
+                className="btn btn-danger"
+                onClick={handleRestartGateway}
+                disabled={restartInProgress}
+              >
+                {restartInProgress && <ButtonSpinner />}
+                {restartInProgress ? 'Restarting...' : 'Restart Gateway'}
+              </button>
+            </div>
+            <p className="hint">
+              Restart the gateway to apply configuration changes or recover from errors.
+              All connected clients will be temporarily disconnected.
+            </p>
+          </section>
+
+          {loading ? (
+            <div className="loading">
+              <div className="spinner"></div>
+              <p>Loading devices...</p>
+            </div>
+          ) : (
+            <>
+              <section className="devices-section">
+                <div className="section-header">
+                  <h2>Pending Pairing Requests</h2>
+                  <div className="header-actions">
+                    {pending.length > 0 && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleApproveAll}
+                        disabled={actionInProgress !== null}
+                      >
+                        {actionInProgress === 'all' && <ButtonSpinner />}
+                        {actionInProgress === 'all' ? 'Approving...' : `Approve All (${pending.length})`}
+                      </button>
+                    )}
+                    <button className="btn btn-secondary" onClick={fetchDevices} disabled={loading}>
+                      Refresh
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+
+                {pending.length === 0 ? (
+                  <div className="empty-state">
+                    <p>No pending pairing requests</p>
+                    <p className="hint">
+                      Devices will appear here when they attempt to connect without being paired.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="devices-grid">
+                    {pending.map((device) => (
+                      <div key={device.requestId} className="device-card pending">
+                        <div className="device-header">
+                          <span className="device-name">
+                            {device.displayName || device.deviceId || 'Unknown Device'}
+                          </span>
+                          <span className="device-badge pending">Pending</span>
+                        </div>
+                        <div className="device-details">
+                          {device.platform && (
+                            <div className="detail-row">
+                              <span className="label">Platform:</span>
+                              <span className="value">{device.platform}</span>
+                            </div>
+                          )}
+                          {device.clientId && (
+                            <div className="detail-row">
+                              <span className="label">Client:</span>
+                              <span className="value">{device.clientId}</span>
+                            </div>
+                          )}
+                          {device.clientMode && (
+                            <div className="detail-row">
+                              <span className="label">Mode:</span>
+                              <span className="value">{device.clientMode}</span>
+                            </div>
+                          )}
+                          {device.role && (
+                            <div className="detail-row">
+                              <span className="label">Role:</span>
+                              <span className="value">{device.role}</span>
+                            </div>
+                          )}
+                          {device.remoteIp && (
+                            <div className="detail-row">
+                              <span className="label">IP:</span>
+                              <span className="value">{device.remoteIp}</span>
+                            </div>
+                          )}
+                          <div className="detail-row">
+                            <span className="label">Requested:</span>
+                            <span className="value" title={formatTimestamp(device.ts)}>
+                              {formatTimeAgo(device.ts)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="device-actions">
+                          <button
+                            className="btn btn-success"
+                            onClick={() => handleApprove(device.requestId)}
+                            disabled={actionInProgress !== null}
+                          >
+                            {actionInProgress === device.requestId && <ButtonSpinner />}
+                            {actionInProgress === device.requestId ? 'Approving...' : 'Approve'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="devices-section">
+                <div className="section-header">
+                  <h2>Paired Devices</h2>
+                </div>
+
+                {paired.length === 0 ? (
+                  <div className="empty-state">
+                    <p>No paired devices</p>
+                  </div>
+                ) : (
+                  <div className="devices-grid">
+                    {paired.map((device, index) => (
+                      <div key={device.deviceId || index} className="device-card paired">
+                        <div className="device-header">
+                          <span className="device-name">
+                            {device.displayName || device.deviceId || 'Unknown Device'}
+                          </span>
+                          <span className="device-badge paired">Paired</span>
+                        </div>
+                        <div className="device-details">
+                          {device.platform && (
+                            <div className="detail-row">
+                              <span className="label">Platform:</span>
+                              <span className="value">{device.platform}</span>
+                            </div>
+                          )}
+                          {device.clientId && (
+                            <div className="detail-row">
+                              <span className="label">Client:</span>
+                              <span className="value">{device.clientId}</span>
+                            </div>
+                          )}
+                          {device.clientMode && (
+                            <div className="detail-row">
+                              <span className="label">Mode:</span>
+                              <span className="value">{device.clientMode}</span>
+                            </div>
+                          )}
+                          {device.role && (
+                            <div className="detail-row">
+                              <span className="label">Role:</span>
+                              <span className="value">{device.role}</span>
+                            </div>
+                          )}
+                          <div className="detail-row">
+                            <span className="label">Paired:</span>
+                            <span className="value" title={formatTimestamp(device.approvedAtMs)}>
+                              {formatTimeAgo(device.approvedAtMs)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </>
       )}
     </div>

@@ -140,3 +140,111 @@ export async function triggerSync(): Promise<SyncResponse> {
     method: 'POST',
   });
 }
+
+// ============================================================
+// Snapshot API
+// ============================================================
+
+export interface SnapshotMetadata {
+  id: string;
+  timestamp: string;
+  description: string;
+  trigger: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync';
+  version: number;
+  files: {
+    clawdbotJson: boolean;
+    skillsCount: number;
+  };
+  metadata: {
+    configSize: number;
+    skillsSize: number;
+  };
+}
+
+export interface SnapshotListResponse {
+  success: boolean;
+  snapshots: SnapshotMetadata[];
+  count: number;
+  error?: string;
+}
+
+export interface SnapshotCreateResponse {
+  success: boolean;
+  snapshot?: SnapshotMetadata;
+  message?: string;
+  error?: string;
+  details?: string;
+}
+
+export interface SnapshotRestoreResponse {
+  success: boolean;
+  snapshot?: SnapshotMetadata;
+  message?: string;
+  requiresRestart?: boolean;
+  error?: string;
+  details?: string;
+}
+
+export interface SnapshotDeleteResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface SnapshotCompareResponse {
+  success: boolean;
+  snapshotId: string;
+  compareToId: string;
+  diff?: {
+    configChanged: boolean;
+    configDiff?: string;
+    skillsAdded: string[];
+    skillsRemoved: string[];
+    skillsModified: string[];
+  };
+  error?: string;
+}
+
+export async function listSnapshots(): Promise<SnapshotListResponse> {
+  return apiRequest<SnapshotListResponse>('/snapshots');
+}
+
+export async function createSnapshot(
+  description?: string,
+  trigger?: 'manual' | 'auto' | 'pre-evolution'
+): Promise<SnapshotCreateResponse> {
+  return apiRequest<SnapshotCreateResponse>('/snapshots', {
+    method: 'POST',
+    body: JSON.stringify({ description, trigger }),
+  });
+}
+
+export async function getSnapshotDetails(
+  snapshotId: string
+): Promise<{ success: boolean; snapshot?: unknown; error?: string }> {
+  return apiRequest(`/snapshots/${snapshotId}`);
+}
+
+export async function restoreSnapshot(
+  snapshotId: string
+): Promise<SnapshotRestoreResponse> {
+  return apiRequest<SnapshotRestoreResponse>(`/snapshots/${snapshotId}/restore`, {
+    method: 'POST',
+  });
+}
+
+export async function deleteSnapshot(
+  snapshotId: string
+): Promise<SnapshotDeleteResponse> {
+  return apiRequest<SnapshotDeleteResponse>(`/snapshots/${snapshotId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function compareSnapshot(
+  snapshotId: string,
+  compareToId?: string
+): Promise<SnapshotCompareResponse> {
+  const query = compareToId ? `?compareToId=${compareToId}` : '';
+  return apiRequest<SnapshotCompareResponse>(`/snapshots/${snapshotId}/compare${query}`);
+}

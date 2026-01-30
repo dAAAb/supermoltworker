@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { createAccessMiddleware } from '../auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
+import { snapshotApi } from './snapshot-api';
+import { notificationApi } from './notification-api';
+import { healthApi } from './health-api';
+import { evolutionApi } from './evolution-api';
 import { R2_MOUNT_PATH } from '../config';
 
 // CLI commands can take 10-15 seconds to complete due to WebSocket connection overhead
@@ -271,6 +275,99 @@ adminApi.post('/gateway/restart', async (c) => {
         ? 'Gateway process killed, new instance starting...'
         : 'No existing process found, starting new instance...',
       previousProcessId: existingProcess?.id,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ error: errorMessage }, 500);
+  }
+});
+
+// Mount snapshot API routes under /admin/snapshots
+adminApi.route('/snapshots', snapshotApi);
+
+// Mount notification API routes under /admin/notifications
+// SuperMoltWorker: Real-time notifications and evolution management
+adminApi.route('/notifications', notificationApi);
+
+// Mount health API routes under /admin/health
+// SuperMoltWorker: Health checks and conflict detection
+adminApi.route('/health', healthApi);
+
+// Mount evolution API routes under /admin/evolution
+// SuperMoltWorker: Evolution protection and management
+adminApi.route('/evolution', evolutionApi);
+
+// POST /api/admin/reset - Complete reset of moltbot state
+// SuperMoltWorker: Reset wizard backend
+adminApi.post('/reset', async (c) => {
+  const sandbox = c.get('sandbox');
+
+  try {
+    const body = await c.req.json() as {
+      preserveConversations?: boolean;
+      preservePairedDevices?: boolean;
+      preserveCustomSkills?: boolean;
+    };
+
+    const CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
+    const SKILLS_PATH = '/root/.clawdbot/skills';
+
+    // Build reset commands based on preserve options
+    const commands: string[] = [];
+
+    // Reset config to default (preserve model settings from env)
+    commands.push(`cat > ${CONFIG_PATH} << 'DEFAULTCONFIG'
+{
+  "workspace": "/root/workspace",
+  "agent": {
+    "defaults": {
+      "model": ""
+    }
+  },
+  "channels": {}
+}
+DEFAULTCONFIG`);
+
+    // Clear conversations if not preserving
+    if (!body.preserveConversations) {
+      commands.push('rm -rf /root/.clawdbot/conversations/* 2>/dev/null || true');
+    }
+
+    // Clear paired devices if not preserving
+    if (!body.preservePairedDevices) {
+      // Device data is stored in the gateway state, need to reset via CLI
+      commands.push('rm -rf /root/.clawdbot/devices/* 2>/dev/null || true');
+      commands.push('rm -f /root/.clawdbot/*.db 2>/dev/null || true');
+    }
+
+    // Clear skills if not preserving
+    if (!body.preserveCustomSkills) {
+      commands.push(`rm -rf ${SKILLS_PATH}/* 2>/dev/null || true`);
+    }
+
+    // Execute reset commands
+    const fullCommand = commands.join(' && ');
+    const proc = await sandbox.startProcess(fullCommand);
+    await waitForProcess(proc, 30000);
+
+    const logs = await proc.getLogs();
+
+    if (proc.exitCode !== 0) {
+      return c.json({
+        success: false,
+        error: 'Reset commands failed',
+        details: logs.stderr,
+      }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: 'Reset completed successfully',
+      preserved: {
+        conversations: body.preserveConversations ?? false,
+        pairedDevices: body.preservePairedDevices ?? false,
+        customSkills: body.preserveCustomSkills ?? false,
+      },
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

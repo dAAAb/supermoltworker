@@ -1,0 +1,48 @@
+/* Risk Badge Styles */
+
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.risk-badge.size-sm {
+  font-size: 0.75rem;
+  padding: 0.0625rem 0.375rem;
+}
+
+.risk-badge.size-md {
+  font-size: 0.85rem;
+}
+
+.risk-badge.size-lg {
+  font-size: 1rem;
+  padding: 0.25rem 0.75rem;
+}
+
+.risk-safe {
+  background-color: rgba(74, 222, 128, 0.15);
+  color: var(--success-color);
+}
+
+.risk-medium {
+  background-color: rgba(251, 191, 36, 0.15);
+  color: var(--warning-color);
+}
+
+.risk-high {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--error-color);
+}
+
+.risk-icon {
+  font-size: 0.9em;
+}
+
+.risk-label {
+  text-transform: capitalize;
+}

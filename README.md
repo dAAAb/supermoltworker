@@ -1,6 +1,8 @@
-# Moltbot on Cloudflare Workers
+# SuperMoltWorker - Moltbot on Cloudflare Workers
 
-Run [Moltbot](https://molt.bot/) personal AI assistant in a [Cloudflare Sandbox](https://developers.cloudflare.com/sandbox/).
+Run [Moltbot](https://molt.bot/) personal AI assistant in a [Cloudflare Sandbox](https://developers.cloudflare.com/sandbox/) with enhanced evolution protection and memory management.
+
+> **SuperMoltWorker** is an enhanced fork of moltworker that adds evolution protection, memory snapshots, conflict detection, and health monitoring to help your moltbot safely evolve without "past-life memory" issues.
 
 > **Experimental:** This is a proof of concept demonstrating that Moltbot can run in Cloudflare Sandbox. It is not officially supported and may break without notice. Use at your own risk.
 
@@ -230,8 +232,104 @@ Access the admin UI at `/_admin/` to:
 - **R2 Storage Status** - Shows if R2 is configured, last backup time, and a "Backup Now" button
 - **Restart Gateway** - Kill and restart the moltbot gateway process
 - **Device Pairing** - View pending requests, approve devices individually or all at once, view paired devices
+- **Memory Panel** - View and manage snapshots, restore to previous states (SuperMoltWorker)
+- **Health Dashboard** - Monitor system health, detect conflicts, auto-repair issues (SuperMoltWorker)
+- **Evolution Panel** - Manage moltbot's self-modification requests, approve/reject config changes (SuperMoltWorker)
 
 The admin UI requires Cloudflare Access authentication (or `DEV_MODE=true` for local development).
+
+## SuperMoltWorker Features
+
+SuperMoltWorker adds several features to help manage moltbot's "evolution" - its ability to modify its own configuration and learn from interactions.
+
+### Memory Snapshot System
+
+Automatic and manual snapshots of moltbot's configuration state:
+
+- **Auto-snapshots** - Created automatically before startup and before risky operations
+- **Manual snapshots** - Create snapshots anytime via the Memory Panel
+- **Snapshot restore** - Roll back to any previous snapshot
+- **Configurable retention** - Keep the last N snapshots (default: 10)
+
+```bash
+# Disable auto-snapshots (not recommended)
+npx wrangler secret put AUTO_SNAPSHOT
+# Enter: false
+```
+
+### Evolution Protection
+
+When moltbot tries to modify its configuration (e.g., changing AI providers, updating channel settings), SuperMoltWorker intercepts the change and:
+
+1. **Analyzes risk level** - Safe, Medium, or High based on what's being changed
+2. **Creates a pre-evolution snapshot** - So you can roll back if needed
+3. **Notifies you via WebSocket** - Real-time notification to approve/reject changes
+
+Risk levels:
+- **Safe** - Workspace paths, agent defaults, adding skills
+- **Medium** - Gateway settings, channel configuration
+- **High** - AI provider changes, authentication settings
+
+```bash
+# Set evolution mode (default: confirm)
+npx wrangler secret put SUPER_MOLTWORKER_EVOLUTION_MODE
+# Options:
+#   confirm - Require approval for medium/high risk changes
+#   auto - Auto-approve safe changes only
+#   test - Test mode, never actually apply changes
+```
+
+### Conflict Detection
+
+At startup, SuperMoltWorker checks for "past-life memory" conflicts:
+
+- **Provider stacking** - Multiple AI providers configured simultaneously
+- **Auth mismatch** - Inconsistent authentication settings
+- **Channel residue** - Old channel configs from previous sessions
+- **Timestamp anomalies** - Future timestamps or other time issues
+
+```bash
+# Enable auto-fix for detected conflicts
+npx wrangler secret put CONFLICT_AUTO_FIX
+# Enter: true
+```
+
+### Health Monitoring
+
+Continuous health checks and self-repair capabilities:
+
+- **Config validation** - Ensure configuration is valid JSON
+- **Provider status** - Check AI provider connectivity
+- **R2 connectivity** - Verify backup storage is working
+- **Gateway health** - Monitor gateway responsiveness
+
+Access the Health Dashboard at `/_admin/` (Health tab) to view status and trigger repairs.
+
+### Complete Reset Wizard
+
+If moltbot gets into an unrecoverable state, use the Reset Wizard:
+
+1. Choose what to preserve (conversations, devices, skills)
+2. Create a final snapshot for safety
+3. Reset to initial state
+4. Optionally restore from snapshot later
+
+### API Endpoints (SuperMoltWorker)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/admin/snapshots` | List all snapshots |
+| `POST /api/admin/snapshots` | Create a new snapshot |
+| `POST /api/admin/snapshots/:id/restore` | Restore to a snapshot |
+| `GET /api/admin/health` | Full health check |
+| `POST /api/admin/health/repair` | Auto-repair issues |
+| `GET /api/admin/health/conflicts` | Detect configuration conflicts |
+| `POST /api/admin/health/conflicts/auto-fix` | Auto-fix conflicts |
+| `GET /api/admin/evolution/pending` | List pending evolution requests |
+| `POST /api/admin/evolution/:id/approve` | Approve an evolution |
+| `POST /api/admin/evolution/:id/reject` | Reject an evolution |
+| `GET /api/admin/notifications` | Get all notifications |
+| `WS /ws/notifications` | WebSocket for real-time notifications |
 
 ## Debug Endpoints
 
@@ -381,6 +479,10 @@ The `AI_GATEWAY_*` variables take precedence over `ANTHROPIC_*` if both are set.
 | `SLACK_APP_TOKEN` | No | Slack app token |
 | `CDP_SECRET` | No | Shared secret for CDP endpoint authentication (see [Browser Automation](#optional-browser-automation-cdp)) |
 | `WORKER_URL` | No | Public URL of the worker (required for CDP) |
+| `AUTO_SNAPSHOT` | No | Set to `false` to disable auto-snapshots (SuperMoltWorker) |
+| `CONFLICT_AUTO_FIX` | No | Set to `true` to auto-fix detected conflicts (SuperMoltWorker) |
+| `SUPER_MOLTWORKER_EVOLUTION_MODE` | No | Evolution mode: `confirm` (default), `auto`, or `test` (SuperMoltWorker) |
+| `SUPER_MOLTWORKER_MAX_SNAPSHOTS` | No | Maximum snapshots to keep (default: 10) (SuperMoltWorker) |
 
 ## Security Considerations
 

@@ -272,6 +272,43 @@ console.log('Config:', JSON.stringify(config, null, 2));
 EOFNODE
 
 # ============================================================
+# SUPERMOLTWORKER: CONFLICT DETECTION
+# ============================================================
+# Detect and optionally auto-fix configuration conflicts
+# Set CONFLICT_AUTO_FIX=true to automatically fix detected conflicts
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Running conflict detection..."
+    if [ "$CONFLICT_AUTO_FIX" = "true" ]; then
+        node /usr/local/bin/conflict-detector.js --auto-fix || echo "Warning: Conflict detection failed (non-fatal)"
+    else
+        node /usr/local/bin/conflict-detector.js || echo "Warning: Conflict detection failed (non-fatal)"
+    fi
+fi
+
+# ============================================================
+# SUPERMOLTWORKER: CREATE STARTUP SNAPSHOT
+# ============================================================
+# Create an automatic snapshot before starting the gateway
+# This allows recovery if something goes wrong during this session
+# Set AUTO_SNAPSHOT=false to disable this behavior
+
+if [ "$AUTO_SNAPSHOT" != "false" ] && [ -d "$BACKUP_DIR" ]; then
+    echo "Creating pre-startup snapshot..."
+    if node /usr/local/bin/snapshot-creator.js --trigger auto --description "Auto snapshot at container startup"; then
+        echo "Startup snapshot created successfully"
+    else
+        echo "Warning: Failed to create startup snapshot (non-fatal)"
+    fi
+else
+    if [ "$AUTO_SNAPSHOT" = "false" ]; then
+        echo "Auto snapshot disabled by AUTO_SNAPSHOT=false"
+    else
+        echo "Skipping snapshot (R2 not mounted)"
+    fi
+fi
+
+# ============================================================
 # START GATEWAY
 # ============================================================
 # Note: R2 backup sync is handled by the Worker's cron trigger
