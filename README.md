@@ -331,6 +331,110 @@ If moltbot gets into an unrecoverable state, use the Reset Wizard:
 | `GET /api/admin/notifications` | Get all notifications |
 | `WS /ws/notifications` | WebSocket for real-time notifications |
 
+## Design Philosophy
+
+SuperMoltWorker introduces a unique approach to managing AI assistant configuration that addresses the "past-life memory" problem - where an AI assistant's persistent state conflicts with new deployment settings.
+
+### The Dual-Storage Architecture
+
+SuperMoltWorker maintains configuration in two separate locations:
+
+1. **R2 Storage (clawdbot.json)** - The primary configuration file containing all settings, managed by the AI assistant itself
+2. **Cloudflare Secrets (Environment Variables)** - Critical secrets stored securely in Cloudflare's infrastructure
+
+This dual-storage approach provides a safety net: if the AI accidentally corrupts its configuration or "forgets" important settings, the Cloudflare Secrets remain intact.
+
+### Settings Sync Status
+
+The Settings Sync panel displays four status types:
+
+| Status | Meaning | Safety Level |
+|--------|---------|--------------|
+| **Synced** | Value exists in both clawdbot.json and Cloudflare Secrets | ✅ Safe |
+| **Env Only** | Value exists only in Cloudflare Secrets | ✅✅ Safest |
+| **Unsynced** | Value exists only in clawdbot.json | ⚠️ At Risk |
+| **Not Set** | Value not configured anywhere | ❌ Missing |
+
+**Why "Env Only" is the safest configuration:**
+- Cloudflare Secrets are immutable and managed outside the container
+- Even if R2 data is lost or corrupted, secrets persist
+- The AI assistant cannot accidentally delete or modify these values
+- On restart, the system always has access to critical credentials
+
+**Why "Unsynced" is risky:**
+- If R2 storage fails, the value is lost forever
+- If the AI corrupts clawdbot.json, the value may become invalid
+- No backup exists in the infrastructure
+
+### The Evolution Protection Model
+
+When moltbot (the AI assistant) attempts to modify its own configuration:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AI Assistant requests config change                    │
+│                    ↓                                    │
+│  ┌─────────────────────────────────────────────┐       │
+│  │  SuperMoltWorker intercepts the request     │       │
+│  │  1. Analyze risk level                      │       │
+│  │  2. Create pre-evolution snapshot           │       │
+│  │  3. Notify user (if high risk)              │       │
+│  │  4. Wait for approval                       │       │
+│  │  5. Apply change (or reject)                │       │
+│  └─────────────────────────────────────────────┘       │
+│                    ↓                                    │
+│  Change applied with full rollback capability           │
+└─────────────────────────────────────────────────────────┘
+```
+
+This prevents the "evolution death spiral" where:
+1. AI modifies configuration
+2. Configuration becomes invalid
+3. AI can't start properly
+4. AI tries to "fix" by modifying more
+5. Situation gets worse
+
+### Safe Restart Protocol
+
+One critical lesson learned: restarting immediately after configuration changes can cause data loss because R2 sync happens every 5 minutes.
+
+SuperMoltWorker's safe restart:
+1. Create a snapshot before restart
+2. Force-sync to R2 immediately
+3. Notify user that snapshot exists for rollback
+4. Execute restart
+
+### Upgrade Script Design
+
+The `scripts/upgrade-dora.sh` demonstrates best practices for upgrading existing moltbot deployments:
+
+1. **Pre-flight checks** - Verify all required secrets exist before deployment
+2. **Automatic backup** - Download existing clawdbot.json before any changes
+3. **Phased deployment** - Build → Deploy → Verify in separate steps
+4. **Post-deployment verification** - Health check after deployment completes
+
+```bash
+# Example: Required secrets check
+REQUIRED_SECRETS=("ANTHROPIC_API_KEY" "MOLTBOT_GATEWAY_TOKEN" ...)
+for secret in "${REQUIRED_SECRETS[@]}"; do
+  if ! exists "$secret"; then
+    warn "Missing required secret: $secret"
+  fi
+done
+```
+
+### Lessons from Production
+
+Based on real-world deployment experience:
+
+1. **Secret naming consistency matters** - Use the exact secret names that the Worker expects (e.g., `MOLTBOT_GATEWAY_TOKEN` not `GATEWAY_AUTH_TOKEN`)
+
+2. **Always backup before upgrade** - Even if you think nothing will change, unexpected issues happen
+
+3. **Verify Settings Sync after upgrade** - Check that all "Unsynced" items are intentional
+
+4. **Set critical secrets to "Env Only"** - For maximum resilience, configure important credentials as Cloudflare Secrets even if they're also in clawdbot.json
+
 ## Debug Endpoints
 
 Debug endpoints are available at `/debug/*` when enabled (requires `DEBUG_ROUTES=true` and Cloudflare Access):
