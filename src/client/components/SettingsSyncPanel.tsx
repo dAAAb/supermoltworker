@@ -33,6 +33,8 @@ function getStatusIcon(status: string) {
       return '⚠️';
     case 'env_only':
       return '📦';
+    case 'env_only_ok':
+      return '🔒';
     case 'not_set':
       return '─';
     case 'conflict':
@@ -50,12 +52,27 @@ function getStatusLabel(status: string) {
       return 'Unsynced';
     case 'env_only':
       return 'Env Only';
+    case 'env_only_ok':
+      return 'Secure';
     case 'not_set':
       return 'Not Set';
     case 'conflict':
       return 'Conflict';
     default:
       return status;
+  }
+}
+
+function getStatusTooltip(status: string): string | null {
+  switch (status) {
+    case 'env_only_ok':
+      return 'This setting is intentionally kept only in environment variables for security. It will never be stored in R2.';
+    case 'env_only':
+      return 'This setting only exists in environment variables. Consider syncing to clawdbot.json if needed.';
+    case 'unsynced':
+      return 'This setting only exists in clawdbot.json. If R2 fails, this value may be lost.';
+    default:
+      return null;
   }
 }
 
@@ -205,7 +222,10 @@ function SettingsTable({ category, items }: SettingsTableProps) {
               )}
             </td>
             <td className="setting-status">
-              <span className={`status-badge status-${item.status}`}>
+              <span
+                className={`status-badge status-${item.status}`}
+                title={getStatusTooltip(item.status) || undefined}
+              >
                 {getStatusIcon(item.status)} {getStatusLabel(item.status)}
               </span>
             </td>
@@ -304,6 +324,9 @@ export default function SettingsSyncPanel() {
           <div className="summary-stats">
             <span className="stat stat-synced">
               ✅ Synced: <strong>{summary.synced}</strong>
+            </span>
+            <span className="stat stat-secure" title="Settings intentionally kept only in environment variables for security">
+              🔒 Secure: <strong>{summary.envOnlyOk || 0}</strong>
             </span>
             <span className="stat stat-unsynced">
               ⚠️ Unsynced: <strong>{summary.unsynced}</strong>

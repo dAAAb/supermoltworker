@@ -66,8 +66,81 @@ export interface RepairResult {
   error?: string;
 }
 
+/**
+ * Critical alert for missing configuration
+ * Used to show prominent warnings in the UI
+ */
+export interface CriticalAlert {
+  type: 'missing_api_key' | 'missing_gateway_token' | 'r2_not_configured';
+  severity: 'error' | 'warning';
+  title: string;
+  message: string;
+  action: string;
+  actionCommand?: string;
+}
+
 const CONFIG_PATH = '/root/.clawdbot/clawdbot.json';
 const SKILLS_PATH = '/root/clawd/skills';
+
+/**
+ * Check for critical alerts that should be prominently displayed to users.
+ * These are issues that will prevent the assistant from functioning properly.
+ *
+ * @param env - Worker environment bindings
+ * @returns Array of critical alerts
+ */
+export function getCriticalAlerts(env: MoltbotEnv): CriticalAlert[] {
+  const alerts: CriticalAlert[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const envAny = env as any;
+
+  // Check for missing AI provider API key
+  const hasAnthropicKey = !!envAny.ANTHROPIC_API_KEY;
+  const hasAIGatewayKey = !!envAny.AI_GATEWAY_API_KEY;
+  const hasOpenAIKey = !!envAny.OPENAI_API_KEY;
+
+  if (!hasAnthropicKey && !hasAIGatewayKey && !hasOpenAIKey) {
+    alerts.push({
+      type: 'missing_api_key',
+      severity: 'error',
+      title: 'AI Provider Not Configured',
+      message:
+        'No AI provider API key is set. The assistant cannot respond to messages without an API key. ' +
+        'Please set ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY in Cloudflare Secrets.',
+      action: 'Set API Key',
+      actionCommand: 'npx wrangler secret put ANTHROPIC_API_KEY',
+    });
+  }
+
+  // Check for missing gateway token
+  if (!envAny.MOLTBOT_GATEWAY_TOKEN) {
+    alerts.push({
+      type: 'missing_gateway_token',
+      severity: 'warning',
+      title: 'Gateway Token Not Set',
+      message:
+        'The gateway authentication token is not configured. This is required for secure access to the Control UI.',
+      action: 'Set Gateway Token',
+      actionCommand: 'npx wrangler secret put MOLTBOT_GATEWAY_TOKEN',
+    });
+  }
+
+  // Check for missing R2 configuration
+  if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.CF_ACCOUNT_ID) {
+    alerts.push({
+      type: 'r2_not_configured',
+      severity: 'warning',
+      title: 'Persistent Storage Not Configured',
+      message:
+        'R2 storage is not configured. Your conversations and settings will be lost when the container restarts. ' +
+        'Configure R2 for persistent storage.',
+      action: 'Configure R2',
+    });
+  }
+
+  return alerts;
+}
 
 /**
  * Run a quick health check (fast, minimal checks)

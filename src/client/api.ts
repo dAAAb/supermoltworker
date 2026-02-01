@@ -263,7 +263,7 @@ export interface SettingItem {
   envValue: string | null;
   envExists: boolean;
   isSensitive: boolean;
-  status: 'synced' | 'unsynced' | 'env_only' | 'not_set' | 'conflict';
+  status: 'synced' | 'unsynced' | 'env_only' | 'env_only_ok' | 'not_set' | 'conflict';
   conflict?: {
     configValue: string;
     envValue: string;
@@ -277,6 +277,7 @@ export interface SettingsSyncStatus {
     synced: number;
     unsynced: number;
     envOnly: number;
+    envOnlyOk: number;
     notSet: number;
   };
   categories: {
@@ -331,4 +332,32 @@ export async function getPendingSync(): Promise<PendingSyncResponse> {
 
 export async function removePendingSync(name: string): Promise<{ success: boolean; message?: string; error?: string }> {
   return apiRequest(`/settings/pending/${name}`, { method: 'DELETE' });
+}
+
+// ============================================================
+// Critical Alerts API
+// ============================================================
+
+export interface CriticalAlert {
+  type: 'missing_api_key' | 'missing_gateway_token' | 'r2_not_configured';
+  severity: 'error' | 'warning';
+  title: string;
+  message: string;
+  action: string;
+  actionCommand?: string;
+}
+
+export interface CriticalAlertsResponse {
+  success: boolean;
+  hasAlerts: boolean;
+  alertCount: number;
+  alerts: CriticalAlert[];
+}
+
+/**
+ * Get critical alerts that need user attention.
+ * This is a lightweight call that doesn't require container access.
+ */
+export async function getCriticalAlerts(): Promise<CriticalAlertsResponse> {
+  return apiRequest<CriticalAlertsResponse>('/health/alerts');
 }

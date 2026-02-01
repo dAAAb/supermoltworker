@@ -1,5 +1,6 @@
 import AdminPage from './pages/AdminPage'
 import { NotificationContainer } from './components/NotificationToast'
+import CriticalAlertsBar from './components/CriticalAlertsBar'
 import { useNotification } from './hooks/useNotification'
 import './App.css'
 
@@ -60,6 +61,9 @@ export default function App() {
         </div>
       </header>
       <main className="app-main">
+        {/* Critical alerts at the top */}
+        <CriticalAlertsBar />
+
         <AdminPage />
       </main>
 

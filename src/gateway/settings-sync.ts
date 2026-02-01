@@ -14,6 +14,7 @@ export interface SettingDefinition {
   priority: 'critical' | 'important' | 'optional';
   configPath: string;        // Path in clawdbot.json (dot notation)
   isSensitive: boolean;      // Whether to mask the value in UI
+  envOnlyByDesign?: boolean; // If true, this should NEVER be in clawdbot.json (security)
 }
 
 /**
@@ -23,7 +24,8 @@ export interface SettingItem extends SettingDefinition {
   configValue: string | null;     // Value in clawdbot.json (masked if sensitive)
   configValueRaw: string | null;  // Raw value (for commands)
   envExists: boolean;             // Whether env var exists
-  status: 'synced' | 'unsynced' | 'env_only' | 'not_set';
+  status: 'synced' | 'unsynced' | 'env_only' | 'env_only_ok' | 'not_set';
+  // env_only_ok: envOnlyByDesign setting that is correctly configured (env only, no R2)
 }
 
 /**
@@ -56,6 +58,7 @@ export interface SettingsSyncStatus {
     synced: number;
     unsynced: number;
     envOnly: number;
+    envOnlyOk: number;  // Settings correctly configured as "env only by design"
     notSet: number;
   };
   categories: {
@@ -88,6 +91,7 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
     priority: 'critical',
     configPath: 'models.providers.anthropic.apiKey',
     isSensitive: true,
+    envOnlyByDesign: true, // Security: API keys should never be stored in R2
   },
   {
     name: 'OPENAI_API_KEY',
@@ -96,6 +100,7 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
     priority: 'critical',
     configPath: 'models.providers.openai.apiKey',
     isSensitive: true,
+    envOnlyByDesign: true, // Security: API keys should never be stored in R2
   },
   {
     name: 'BRAVE_SEARCH_API_KEY',
@@ -391,13 +396,16 @@ export async function getSettingsSyncStatus(
     const envExists = envValue !== undefined && envValue !== null && envValue !== '';
 
     // Determine status
-    let status: 'synced' | 'unsynced' | 'env_only' | 'not_set';
+    let status: 'synced' | 'unsynced' | 'env_only' | 'env_only_ok' | 'not_set';
     if (configValueRaw && envExists) {
+      // If envOnlyByDesign and value is in config, it's actually a problem
+      // (the value shouldn't be in R2), but we still mark as synced for display
       status = 'synced';
     } else if (configValueRaw && !envExists) {
       status = 'unsynced';
     } else if (!configValueRaw && envExists) {
-      status = 'env_only';
+      // For envOnlyByDesign settings, "env only" is the CORRECT state
+      status = def.envOnlyByDesign ? 'env_only_ok' : 'env_only';
     } else {
       status = 'not_set';
     }
@@ -416,6 +424,7 @@ export async function getSettingsSyncStatus(
     synced: items.filter(i => i.status === 'synced').length,
     unsynced: items.filter(i => i.status === 'unsynced').length,
     envOnly: items.filter(i => i.status === 'env_only').length,
+    envOnlyOk: items.filter(i => i.status === 'env_only_ok').length,
     notSet: items.filter(i => i.status === 'not_set').length,
   };
 

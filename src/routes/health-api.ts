@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
-import { quickHealthCheck, fullHealthCheck, repairHealthIssues } from '../gateway/health-check';
+import { quickHealthCheck, fullHealthCheck, repairHealthIssues, getCriticalAlerts } from '../gateway/health-check';
 import { detectConflicts, autoFixConflicts } from '../gateway/conflict-detector';
 import { notifyHealthWarning, notifyConflictDetected } from '../gateway/notification';
 
@@ -27,6 +27,21 @@ healthApi.get('/', async (c) => {
   return c.json({
     success: true,
     ...report,
+  });
+});
+
+/**
+ * GET /api/admin/health/alerts - Get critical alerts that need user attention
+ * This endpoint is lightweight and does not require sandbox access.
+ */
+healthApi.get('/alerts', (c) => {
+  const alerts = getCriticalAlerts(c.env);
+
+  return c.json({
+    success: true,
+    hasAlerts: alerts.length > 0,
+    alertCount: alerts.length,
+    alerts,
   });
 });
 

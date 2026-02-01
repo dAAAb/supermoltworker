@@ -10,6 +10,22 @@ import {
   type SyncDecision,
 } from './sync-validator';
 
+/**
+ * Fields that should NEVER be synced to R2.
+ * These are "Env Only by design" - they should only exist in Cloudflare Secrets.
+ *
+ * Reasons:
+ * - Security: API keys shouldn't be stored in R2 where they could be exposed
+ * - Resilience: If R2 is corrupted, env vars remain intact
+ * - Control: Prevents AI from accidentally leaking or modifying sensitive keys
+ */
+export const ENV_ONLY_FIELDS = [
+  'models.providers.anthropic.apiKey',
+  'models.providers.openai.apiKey',
+  // Note: Channel tokens (telegram.botToken, etc.) are intentionally NOT here
+  // because the AI assistant needs to "see" which channels it's connected to
+];
+
 export interface SyncResult {
   success: boolean;
   lastSync?: string;
@@ -20,6 +36,87 @@ export interface SyncResult {
   blocked?: boolean;
   snapshotId?: string;
   alertId?: string;
+  sanitized?: string[]; // Fields that were removed before sync
+}
+
+/**
+ * Remove a nested field from an object using dot notation path.
+ * Returns true if the field was removed, false if it didn't exist.
+ */
+function removeNestedField(obj: Record<string, unknown>, path: string): boolean {
+  const parts = path.split('.');
+  let current: Record<string, unknown> = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (current[part] === undefined || current[part] === null || typeof current[part] !== 'object') {
+      return false;
+    }
+    current = current[part] as Record<string, unknown>;
+  }
+
+  const lastPart = parts[parts.length - 1];
+  if (lastPart in current) {
+    delete current[lastPart];
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Sanitize clawdbot.json before syncing to R2.
+ * Removes sensitive fields that should be "Env Only by design".
+ *
+ * @param sandbox - The sandbox instance
+ * @returns List of fields that were sanitized
+ */
+async function sanitizeConfigBeforeSync(sandbox: Sandbox): Promise<string[]> {
+  const configPath = '/root/.clawdbot/clawdbot.json';
+  const sanitized: string[] = [];
+
+  try {
+    // Read current config
+    const readProc = await sandbox.startProcess(`cat ${configPath}`);
+    await waitForProcess(readProc, 5000);
+    const readLogs = await readProc.getLogs();
+
+    if (!readLogs.stdout?.trim()) {
+      console.log('[Sync] No config file to sanitize');
+      return [];
+    }
+
+    const config = JSON.parse(readLogs.stdout.trim());
+
+    // Remove env-only fields
+    for (const field of ENV_ONLY_FIELDS) {
+      if (removeNestedField(config, field)) {
+        sanitized.push(field);
+        console.log(`[Sync] Sanitized field: ${field}`);
+      }
+    }
+
+    if (sanitized.length > 0) {
+      // Write sanitized config back
+      const sanitizedJson = JSON.stringify(config, null, 2);
+      // Use a temp file to avoid shell escaping issues
+      const tempFile = '/tmp/sanitized-config.json';
+      const writeProc = await sandbox.startProcess(
+        `cat > ${tempFile} << 'SANITIZE_EOF'\n${sanitizedJson}\nSANITIZE_EOF`
+      );
+      await waitForProcess(writeProc, 5000);
+
+      // Replace original with sanitized version
+      const mvProc = await sandbox.startProcess(`mv ${tempFile} ${configPath}`);
+      await waitForProcess(mvProc, 5000);
+
+      console.log(`[Sync] Sanitized ${sanitized.length} fields before sync`);
+    }
+  } catch (err) {
+    console.error('[Sync] Failed to sanitize config:', err);
+    // Continue with sync even if sanitization fails
+  }
+
+  return sanitized;
 }
 
 /**
@@ -54,19 +151,23 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     await waitForProcess(checkProc, 5000);
     const checkLogs = await checkProc.getLogs();
     if (!checkLogs.stdout?.includes('ok')) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: 'Sync aborted: source missing clawdbot.json',
         details: 'The local config directory is missing critical files. This could indicate corruption or an incomplete setup.',
       };
     }
   } catch (err) {
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: 'Failed to verify source files',
       details: err instanceof Error ? err.message : 'Unknown error',
     };
   }
+
+  // Sanitize config before sync - remove "Env Only by design" fields
+  // This prevents sensitive API keys from being stored in R2
+  const sanitized = await sanitizeConfigBeforeSync(sandbox);
 
   // Run rsync to backup config to R2
   // Note: Use --no-times because s3fs doesn't support setting timestamps
@@ -85,7 +186,7 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     const lastSync = timestampLogs.stdout?.trim();
     
     if (lastSync && lastSync.match(/^\d{4}-\d{2}-\d{2}/)) {
-      return { success: true, lastSync };
+      return { success: true, lastSync, sanitized };
     } else {
       const logs = await proc.getLogs();
       return {

@@ -247,6 +247,16 @@
   color: var(--primary-color);
 }
 
+.status-badge.status-env_only_ok {
+  background-color: rgba(74, 222, 128, 0.15);
+  color: var(--success-color);
+  cursor: help;
+}
+
+.stat-secure strong {
+  color: var(--success-color);
+}
+
 .status-badge.status-not_set {
   background-color: var(--surface-hover);
   color: var(--text-muted);
