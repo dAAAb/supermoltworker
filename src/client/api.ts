@@ -248,3 +248,87 @@ export async function compareSnapshot(
   const query = compareToId ? `?compareToId=${compareToId}` : '';
   return apiRequest<SnapshotCompareResponse>(`/snapshots/${snapshotId}/compare${query}`);
 }
+
+// ============================================================
+// Settings Sync API
+// ============================================================
+
+export interface SettingItem {
+  name: string;
+  displayName: string;
+  category: 'secrets' | 'channels' | 'agents' | 'gateway' | 'other';
+  priority: 'critical' | 'important' | 'optional';
+  configPath: string;
+  configValue: string | null;
+  envValue: string | null;
+  envExists: boolean;
+  isSensitive: boolean;
+  status: 'synced' | 'unsynced' | 'env_only' | 'not_set' | 'conflict';
+  conflict?: {
+    configValue: string;
+    envValue: string;
+    recommendation: 'use_config' | 'use_env';
+  };
+}
+
+export interface SettingsSyncStatus {
+  success: boolean;
+  summary: {
+    synced: number;
+    unsynced: number;
+    envOnly: number;
+    notSet: number;
+  };
+  categories: {
+    secrets: SettingItem[];
+    channels: SettingItem[];
+    agents: SettingItem[];
+    gateway: SettingItem[];
+    other: SettingItem[];
+  };
+  error?: string;
+}
+
+export interface ExportCommandsResponse {
+  success: boolean;
+  commands: string[];
+  items: Array<{ name: string; value: string }>;
+  commandsText: string;
+  error?: string;
+}
+
+export interface PendingEnvSync {
+  name: string;
+  displayName: string;
+  setAt: string;
+  priority: 'critical' | 'important' | 'optional';
+  lastReminded?: string;
+}
+
+export interface PendingSyncResponse {
+  success: boolean;
+  pending: PendingEnvSync[];
+  lastUpdated?: string;
+  error?: string;
+}
+
+export async function getSettingsSyncStatus(): Promise<SettingsSyncStatus> {
+  return apiRequest<SettingsSyncStatus>('/settings/sync-status');
+}
+
+export async function getExportCommands(
+  category: 'all' | 'secrets' | 'channels' | 'agents' | 'gateway' | 'other' = 'all',
+  onlyUnsynced: boolean = true
+): Promise<ExportCommandsResponse> {
+  return apiRequest<ExportCommandsResponse>(
+    `/settings/export-commands?category=${category}&onlyUnsynced=${onlyUnsynced}`
+  );
+}
+
+export async function getPendingSync(): Promise<PendingSyncResponse> {
+  return apiRequest<PendingSyncResponse>('/settings/pending');
+}
+
+export async function removePendingSync(name: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  return apiRequest(`/settings/pending/${name}`, { method: 'DELETE' });
+}

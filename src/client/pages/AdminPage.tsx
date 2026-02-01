@@ -16,9 +16,10 @@ import MemoryPanel from '../components/MemoryPanel'
 import HealthDashboard from '../components/HealthDashboard'
 import EvolutionPanel from '../components/EvolutionPanel'
 import ResetWizard from '../components/ResetWizard'
+import SettingsSyncPanel from '../components/SettingsSyncPanel'
 import './AdminPage.css'
 
-type TabType = 'devices' | 'memory' | 'health' | 'evolution';
+type TabType = 'devices' | 'memory' | 'health' | 'settings' | 'evolution';
 
 // Small inline spinner for buttons
 function ButtonSpinner() {
@@ -199,6 +200,12 @@ export default function AdminPage() {
           Health
         </button>
         <button
+          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          Settings Sync
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'evolution' ? 'active' : ''}`}
           onClick={() => setActiveTab('evolution')}
         >
@@ -226,6 +233,11 @@ export default function AdminPage() {
       {/* Health Tab */}
       {activeTab === 'health' && (
         <HealthDashboard />
+      )}
+
+      {/* Settings Sync Tab */}
+      {activeTab === 'settings' && (
+        <SettingsSyncPanel />
       )}
 
       {/* Evolution Tab */}
