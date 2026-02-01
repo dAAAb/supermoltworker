@@ -2,6 +2,14 @@ import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { createAccessMiddleware } from '../auth';
 import { ensureMoltbotGateway, findExistingMoltbotProcess, mountR2Storage, syncToR2, waitForProcess } from '../gateway';
+import { syncToR2WithProtection } from '../gateway/sync';
+import { createSnapshot } from '../gateway/snapshot';
+import {
+  validateSync,
+  getSyncStatus,
+  getConflictAlerts,
+  resolveConflictAlert,
+} from '../gateway/sync-validator';
 import { snapshotApi } from './snapshot-api';
 import { notificationApi } from './notification-api';
 import { healthApi } from './health-api';
@@ -223,58 +231,224 @@ adminApi.get('/storage', async (c) => {
 });
 
 // POST /api/admin/storage/sync - Trigger a manual sync to R2
+// SuperMoltWorker: Enhanced with sync protection
 adminApi.post('/storage/sync', async (c) => {
   const sandbox = c.get('sandbox');
-  
-  const result = await syncToR2(sandbox, c.env);
-  
+
+  // Parse options from request body
+  const body = await c.req.json().catch(() => ({})) as {
+    force?: boolean;           // Force sync even if blocked
+    skipValidation?: boolean;  // Skip validation (for testing)
+  };
+
+  const result = await syncToR2WithProtection(sandbox, c.env, {
+    force: body.force,
+    skipValidation: body.skipValidation,
+  });
+
   if (result.success) {
     return c.json({
       success: true,
       message: 'Sync completed successfully',
       lastSync: result.lastSync,
+      validation: result.validation,
+      snapshotId: result.snapshotId,
     });
   } else {
-    const status = result.error?.includes('not configured') ? 400 : 500;
+    // Different status codes based on reason
+    let status = 500;
+    if (result.error?.includes('not configured')) {
+      status = 400;
+    } else if (result.blocked) {
+      status = 409; // Conflict - sync was blocked by protection
+    }
+
     return c.json({
       success: false,
       error: result.error,
       details: result.details,
+      blocked: result.blocked,
+      validation: result.validation,
+      snapshotId: result.snapshotId,
+      alertId: result.alertId,
     }, status);
   }
 });
 
+// GET /api/admin/sync/status - Get current sync status and protection info
+// SuperMoltWorker: Sync protection status endpoint
+adminApi.get('/sync/status', async (c) => {
+  const sandbox = c.get('sandbox');
+
+  try {
+    const status = await getSyncStatus(sandbox, c.env);
+    return c.json({
+      success: true,
+      ...status,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ success: false, error: errorMessage }, 500);
+  }
+});
+
+// POST /api/admin/sync/validate - Validate a sync before executing
+// SuperMoltWorker: Pre-sync validation endpoint
+adminApi.post('/sync/validate', async (c) => {
+  const sandbox = c.get('sandbox');
+
+  try {
+    const decision = await validateSync(sandbox, c.env);
+    return c.json({
+      success: true,
+      decision,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ success: false, error: errorMessage }, 500);
+  }
+});
+
+// GET /api/admin/conflicts - Get conflict alerts
+// SuperMoltWorker: Conflict alerts endpoint
+adminApi.get('/conflicts', async (c) => {
+  const sandbox = c.get('sandbox');
+  const includeResolved = c.req.query('includeResolved') === 'true';
+
+  try {
+    const alerts = await getConflictAlerts(sandbox, c.env, includeResolved);
+    return c.json({
+      success: true,
+      alerts,
+      count: alerts.length,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ success: false, error: errorMessage }, 500);
+  }
+});
+
+// POST /api/admin/conflicts/:id/resolve - Resolve a conflict alert
+// SuperMoltWorker: Resolve conflict endpoint
+adminApi.post('/conflicts/:id/resolve', async (c) => {
+  const sandbox = c.get('sandbox');
+  const alertId = c.req.param('id');
+
+  if (!alertId) {
+    return c.json({ success: false, error: 'Alert ID is required' }, 400);
+  }
+
+  try {
+    const resolved = await resolveConflictAlert(sandbox, c.env, alertId, 'user');
+    if (resolved) {
+      return c.json({
+        success: true,
+        message: 'Alert resolved',
+        alertId,
+      });
+    } else {
+      return c.json({
+        success: false,
+        error: 'Alert not found or could not be resolved',
+      }, 404);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({ success: false, error: errorMessage }, 500);
+  }
+});
+
 // POST /api/admin/gateway/restart - Kill the current gateway and start a new one
+// SuperMoltWorker: Safe restart mechanism - creates snapshot and syncs to R2 before restart
 adminApi.post('/gateway/restart', async (c) => {
   const sandbox = c.get('sandbox');
 
   try {
-    // Find and kill the existing gateway process
+    // Parse options from request body
+    const options = await c.req.json().catch(() => ({})) as {
+      skipSnapshot?: boolean;   // Skip creating snapshot (default: false)
+      skipSync?: boolean;       // Skip R2 sync (default: false)
+      description?: string;     // Custom snapshot description
+    };
+
+    let snapshotId: string | undefined;
+    let syncResult: { success: boolean; lastSync?: string } | undefined;
+
+    // =========================================
+    // SUPERMOLTWORKER: SAFE RESTART MECHANISM
+    // =========================================
+
+    // Step 1: Create pre-restart snapshot (救命符)
+    if (!options.skipSnapshot) {
+      console.log('[restart] Creating pre-restart snapshot...');
+      try {
+        const snapshotResult = await createSnapshot(sandbox, c.env, {
+          trigger: 'pre-restart' as const,
+          description: options.description || 'Auto snapshot before gateway restart',
+        });
+        if (snapshotResult.success && snapshotResult.snapshot) {
+          snapshotId = snapshotResult.snapshot.id;
+          console.log(`[restart] Snapshot created: ${snapshotId}`);
+        } else {
+          console.warn('[restart] Snapshot creation failed:', snapshotResult.error);
+        }
+      } catch (snapshotErr) {
+        console.warn('[restart] Snapshot creation error (non-fatal):', snapshotErr);
+      }
+    }
+
+    // Step 2: Sync to R2 (確保配置不丟失)
+    if (!options.skipSync) {
+      console.log('[restart] Syncing to R2 before restart...');
+      try {
+        syncResult = await syncToR2(sandbox, c.env);
+        if (syncResult.success) {
+          console.log(`[restart] R2 sync completed at ${syncResult.lastSync}`);
+        } else {
+          console.warn('[restart] R2 sync failed (non-fatal)');
+        }
+      } catch (syncErr) {
+        console.warn('[restart] R2 sync error (non-fatal):', syncErr);
+      }
+    }
+
+    // Step 3: Find and kill the existing gateway process
     const existingProcess = await findExistingMoltbotProcess(sandbox);
-    
+
     if (existingProcess) {
-      console.log('Killing existing gateway process:', existingProcess.id);
+      console.log('[restart] Killing existing gateway process:', existingProcess.id);
       try {
         await existingProcess.kill();
       } catch (killErr) {
-        console.error('Error killing process:', killErr);
+        console.error('[restart] Error killing process:', killErr);
       }
       // Wait a moment for the process to die
       await new Promise(r => setTimeout(r, 2000));
     }
 
-    // Start a new gateway in the background
+    // Step 4: Start a new gateway in the background
     const bootPromise = ensureMoltbotGateway(sandbox, c.env).catch((err) => {
-      console.error('Gateway restart failed:', err);
+      console.error('[restart] Gateway restart failed:', err);
     });
     c.executionCtx.waitUntil(bootPromise);
 
+    // Return response with snapshot info for recovery
     return c.json({
       success: true,
-      message: existingProcess 
+      message: existingProcess
         ? 'Gateway process killed, new instance starting...'
         : 'No existing process found, starting new instance...',
       previousProcessId: existingProcess?.id,
+      // SuperMoltWorker: Include recovery info
+      safeRestart: {
+        snapshotId,
+        snapshotCreated: !!snapshotId,
+        syncedToR2: syncResult?.success ?? false,
+        lastSync: syncResult?.lastSync,
+        recoveryHint: snapshotId
+          ? `If something goes wrong, restore snapshot ${snapshotId} from Admin UI → Memory`
+          : 'No snapshot was created. Consider creating one manually if needed.',
+      },
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

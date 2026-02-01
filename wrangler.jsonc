@@ -35,6 +35,7 @@
   // Container configuration for the Moltbot sandbox
   "containers": [
     {
+      "name": "super-moltbot-v2",
       "class_name": "Sandbox",
       "image": "./Dockerfile",
       "instance_type": "standard-4",

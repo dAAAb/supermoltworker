@@ -11,15 +11,23 @@ export interface SnapshotMetadata {
   id: string;
   timestamp: string;
   description: string;
-  trigger: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync';
+  trigger: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart' | 'auto-protection';
   version: number;
   files: {
     clawdbotJson: boolean;
     skillsCount: number;
+    conversationsCount: number;
+    devicesCount: number;
+    databasesCount: number;
   };
   metadata: {
     configSize: number;
     skillsSize: number;
+    conversationsSize: number;
+    devicesSize: number;
+    databasesSize: number;
+    totalSize: number;
+    completenessScore: number;
   };
 }
 
@@ -39,6 +47,91 @@ export interface SnapshotContent {
   metadata: SnapshotMetadata;
   clawdbotJson: string | null;
   skills: Array<{ name: string; content: string }>;
+  conversations: string[];
+  devices: string[];
+  databases: string[];
+}
+
+/**
+ * Completeness score breakdown
+ */
+export interface CompletenessScore {
+  score: number;  // 0-100
+  breakdown: {
+    hasConfig: number;        // 0-20
+    hasChannels: number;      // 0-20
+    hasApiKeys: number;       // 0-20
+    hasDevices: number;       // 0-20
+    hasConversations: number; // 0-20
+  };
+  warnings: string[];
+}
+
+/**
+ * Calculate completeness score for a configuration
+ */
+export function calculateCompletenessScore(
+  config: Record<string, unknown> | null,
+  stats: { conversationsCount: number; devicesCount: number }
+): CompletenessScore {
+  const breakdown = {
+    hasConfig: 0,
+    hasChannels: 0,
+    hasApiKeys: 0,
+    hasDevices: 0,
+    hasConversations: 0,
+  };
+  const warnings: string[] = [];
+
+  // Check clawdbot.json exists and is valid
+  if (config && Object.keys(config).length > 0) {
+    breakdown.hasConfig = 20;
+  } else {
+    warnings.push('配置檔案為空或不存在');
+  }
+
+  // Check channels
+  const channels = config?.channels as Record<string, unknown> | undefined;
+  if (channels && Object.keys(channels).length > 0) {
+    breakdown.hasChannels = 20;
+  } else {
+    warnings.push('沒有設定任何 channel');
+  }
+
+  // Check API keys
+  const models = config?.models as Record<string, unknown> | undefined;
+  const providers = models?.providers as Record<string, unknown> | undefined;
+  const tools = config?.tools as Record<string, unknown> | undefined;
+  const web = tools?.web as Record<string, unknown> | undefined;
+  const search = web?.search as Record<string, unknown> | undefined;
+
+  const hasAnthropicKey = !!(providers?.anthropic as Record<string, unknown>)?.apiKey;
+  const hasOpenAIKey = !!(providers?.openai as Record<string, unknown>)?.apiKey;
+  const hasSearchKey = !!search?.apiKey;
+
+  if (hasAnthropicKey || hasOpenAIKey || hasSearchKey) {
+    breakdown.hasApiKeys = 20;
+  } else {
+    warnings.push('沒有設定任何 API key');
+  }
+
+  // Check devices
+  if (stats.devicesCount > 0) {
+    breakdown.hasDevices = 20;
+  } else {
+    warnings.push('沒有配對的設備');
+  }
+
+  // Check conversations
+  if (stats.conversationsCount > 0) {
+    breakdown.hasConversations = 20;
+  } else {
+    warnings.push('沒有對話記錄');
+  }
+
+  const score = Object.values(breakdown).reduce((a, b) => a + b, 0);
+
+  return { score, breakdown, warnings };
 }
 
 /**
@@ -74,6 +167,26 @@ function generateSnapshotId(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 8);
   return `snap-${timestamp}-${random}`;
+}
+
+/**
+ * Read config from a snapshot directory
+ */
+async function readConfigFromSnapshot(
+  sandbox: Sandbox,
+  snapshotDir: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const proc = await sandbox.startProcess(`cat ${snapshotDir}/clawdbot.json 2>/dev/null`);
+    await waitForProcess(proc, 5000);
+    const logs = await proc.getLogs();
+    if (logs.stdout?.trim()) {
+      return JSON.parse(logs.stdout.trim());
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
 }
 
 /**
@@ -162,7 +275,7 @@ export async function createSnapshot(
   env: MoltbotEnv,
   options: {
     description?: string;
-    trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync';
+    trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart' | 'auto-protection';
   } = {}
 ): Promise<SnapshotResult> {
   const { description = '', trigger = 'manual' } = options;
@@ -188,8 +301,10 @@ export async function createSnapshot(
   const snapshotDir = `${SNAPSHOTS_DIR}/${snapshotId}`;
 
   try {
-    // Create snapshot directory
-    const mkdirProc = await sandbox.startProcess(`mkdir -p ${snapshotDir}/skills`);
+    // Create snapshot directory with all subdirectories
+    const mkdirProc = await sandbox.startProcess(
+      `mkdir -p ${snapshotDir}/skills ${snapshotDir}/conversations ${snapshotDir}/devices ${snapshotDir}/databases`
+    );
     await waitForProcess(mkdirProc, 5000);
 
     // Copy clawdbot.json
@@ -208,15 +323,57 @@ export async function createSnapshot(
     const copySkillsLogs = await copySkillsProc.getLogs();
     const skillsCount = parseInt(copySkillsLogs.stdout?.trim() || '0', 10);
 
-    // Get file sizes
-    const sizeProc = await sandbox.startProcess(
-      `stat -c %s ${snapshotDir}/clawdbot.json 2>/dev/null || echo "0"; du -sb ${snapshotDir}/skills 2>/dev/null | cut -f1 || echo "0"`
+    // Copy conversations (entire directory)
+    const copyConvProc = await sandbox.startProcess(
+      `cp -r /root/.clawdbot/conversations/. ${snapshotDir}/conversations/ 2>/dev/null; ls ${snapshotDir}/conversations/ 2>/dev/null | wc -l`
     );
-    await waitForProcess(sizeProc, 5000);
+    await waitForProcess(copyConvProc, 30000); // Allow more time for large conversation history
+    const copyConvLogs = await copyConvProc.getLogs();
+    const conversationsCount = parseInt(copyConvLogs.stdout?.trim() || '0', 10);
+
+    // Copy devices data
+    const copyDevicesProc = await sandbox.startProcess(
+      `cp -r /root/.clawdbot/devices/. ${snapshotDir}/devices/ 2>/dev/null; ls ${snapshotDir}/devices/ 2>/dev/null | wc -l`
+    );
+    await waitForProcess(copyDevicesProc, 10000);
+    const copyDevicesLogs = await copyDevicesProc.getLogs();
+    const devicesCount = parseInt(copyDevicesLogs.stdout?.trim() || '0', 10);
+
+    // Copy database files (.db files)
+    const copyDbProc = await sandbox.startProcess(
+      `cp /root/.clawdbot/*.db ${snapshotDir}/databases/ 2>/dev/null; ls ${snapshotDir}/databases/*.db 2>/dev/null | wc -l`
+    );
+    await waitForProcess(copyDbProc, 10000);
+    const copyDbLogs = await copyDbProc.getLogs();
+    const databasesCount = parseInt(copyDbLogs.stdout?.trim() || '0', 10);
+
+    // Get file sizes for all directories
+    const sizeProc = await sandbox.startProcess(
+      `stat -c %s ${snapshotDir}/clawdbot.json 2>/dev/null || echo "0"; ` +
+      `du -sb ${snapshotDir}/skills 2>/dev/null | cut -f1 || echo "0"; ` +
+      `du -sb ${snapshotDir}/conversations 2>/dev/null | cut -f1 || echo "0"; ` +
+      `du -sb ${snapshotDir}/devices 2>/dev/null | cut -f1 || echo "0"; ` +
+      `du -sb ${snapshotDir}/databases 2>/dev/null | cut -f1 || echo "0"`
+    );
+    await waitForProcess(sizeProc, 10000);
     const sizeLogs = await sizeProc.getLogs();
-    const sizes = sizeLogs.stdout?.trim().split('\n') || ['0', '0'];
+    const sizes = sizeLogs.stdout?.trim().split('\n') || ['0', '0', '0', '0', '0'];
     const configSize = parseInt(sizes[0] || '0', 10);
     const skillsSize = parseInt(sizes[1] || '0', 10);
+    const conversationsSize = parseInt(sizes[2] || '0', 10);
+    const devicesSize = parseInt(sizes[3] || '0', 10);
+    const databasesSize = parseInt(sizes[4] || '0', 10);
+    const totalSize = configSize + skillsSize + conversationsSize + devicesSize + databasesSize;
+
+    // Calculate completeness score
+    let completenessScore = 0;
+    try {
+      const configContent = hasConfig ? await readConfigFromSnapshot(sandbox, snapshotDir) : null;
+      const score = calculateCompletenessScore(configContent, { conversationsCount, devicesCount });
+      completenessScore = score.score;
+    } catch {
+      console.warn('[Snapshot] Could not calculate completeness score');
+    }
 
     // Create metadata
     const metadata: SnapshotMetadata = {
@@ -228,10 +385,18 @@ export async function createSnapshot(
       files: {
         clawdbotJson: hasConfig,
         skillsCount,
+        conversationsCount,
+        devicesCount,
+        databasesCount,
       },
       metadata: {
         configSize,
         skillsSize,
+        conversationsSize,
+        devicesSize,
+        databasesSize,
+        totalSize,
+        completenessScore,
       },
     };
 
@@ -332,12 +497,39 @@ export async function getSnapshot(
     const skillsLogs = await skillsProc.getLogs();
     const skillNames = skillsLogs.stdout?.trim().split('\n').filter(Boolean) || [];
 
+    // List conversations
+    const convProc = await sandbox.startProcess(
+      `ls ${snapshotDir}/conversations/ 2>/dev/null || echo ""`
+    );
+    await waitForProcess(convProc, 5000);
+    const convLogs = await convProc.getLogs();
+    const conversations = convLogs.stdout?.trim().split('\n').filter(Boolean) || [];
+
+    // List devices
+    const devicesProc = await sandbox.startProcess(
+      `ls ${snapshotDir}/devices/ 2>/dev/null || echo ""`
+    );
+    await waitForProcess(devicesProc, 5000);
+    const devicesLogs = await devicesProc.getLogs();
+    const devices = devicesLogs.stdout?.trim().split('\n').filter(Boolean) || [];
+
+    // List databases
+    const dbProc = await sandbox.startProcess(
+      `ls ${snapshotDir}/databases/*.db 2>/dev/null | xargs -n1 basename 2>/dev/null || echo ""`
+    );
+    await waitForProcess(dbProc, 5000);
+    const dbLogs = await dbProc.getLogs();
+    const databases = dbLogs.stdout?.trim().split('\n').filter(Boolean) || [];
+
     return {
       success: true,
       snapshot: {
         metadata,
         clawdbotJson,
         skills: skillNames.map((name) => ({ name, content: '' })),
+        conversations,
+        devices,
+        databases,
       },
     };
   } catch (err) {
@@ -400,7 +592,25 @@ export async function restoreSnapshot(
     );
     await waitForProcess(restoreSkillsProc, 10000);
 
-    console.log(`[Snapshot] Restored snapshot ${snapshotId}`);
+    // Restore conversations
+    const restoreConvProc = await sandbox.startProcess(
+      `mkdir -p /root/.clawdbot/conversations; cp -r ${snapshotDir}/conversations/. /root/.clawdbot/conversations/ 2>/dev/null || true`
+    );
+    await waitForProcess(restoreConvProc, 30000); // Allow more time for large conversation history
+
+    // Restore devices
+    const restoreDevicesProc = await sandbox.startProcess(
+      `mkdir -p /root/.clawdbot/devices; cp -r ${snapshotDir}/devices/. /root/.clawdbot/devices/ 2>/dev/null || true`
+    );
+    await waitForProcess(restoreDevicesProc, 10000);
+
+    // Restore databases
+    const restoreDbProc = await sandbox.startProcess(
+      `cp ${snapshotDir}/databases/*.db /root/.clawdbot/ 2>/dev/null || true`
+    );
+    await waitForProcess(restoreDbProc, 10000);
+
+    console.log(`[Snapshot] Restored snapshot ${snapshotId} (config, skills, conversations, devices, databases)`);
     return { success: true, snapshot: metadata };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

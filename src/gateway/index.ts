@@ -1,8 +1,20 @@
 export { buildEnvVars } from './env';
 export { mountR2Storage } from './r2';
 export { findExistingMoltbotProcess, ensureMoltbotGateway } from './process';
-export { syncToR2 } from './sync';
+export { syncToR2, syncToR2WithProtection } from './sync';
 export { waitForProcess } from './utils';
+export {
+  validateSync,
+  handleDangerousSync,
+  getSyncStatus,
+  getConflictAlerts,
+  resolveConflictAlert,
+  getSyncValidatorConfig,
+  type SyncDecision,
+  type SyncDiff,
+  type ConflictAlert,
+  type SyncValidatorConfig,
+} from './sync-validator';
 export {
   createSnapshot,
   listSnapshots,
@@ -12,11 +24,13 @@ export {
   compareSnapshot,
   loadSnapshotIndex,
   getSnapshotConfig,
+  calculateCompletenessScore,
   type SnapshotMetadata,
   type SnapshotIndex,
   type SnapshotContent,
   type SnapshotResult,
   type SnapshotConfig,
+  type CompletenessScore,
 } from './snapshot';
 export {
   getNotificationManager,

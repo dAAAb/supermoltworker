@@ -3,12 +3,23 @@ import type { MoltbotEnv } from '../types';
 import { R2_MOUNT_PATH } from '../config';
 import { mountR2Storage } from './r2';
 import { waitForProcess } from './utils';
+import {
+  validateSync,
+  handleDangerousSync,
+  getSyncValidatorConfig,
+  type SyncDecision,
+} from './sync-validator';
 
 export interface SyncResult {
   success: boolean;
   lastSync?: string;
   error?: string;
   details?: string;
+  // New fields for sync protection
+  validation?: SyncDecision;
+  blocked?: boolean;
+  snapshotId?: string;
+  alertId?: string;
 }
 
 /**
@@ -84,10 +95,96 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
       };
     }
   } catch (err) {
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: 'Sync error',
       details: err instanceof Error ? err.message : 'Unknown error',
     };
   }
+}
+
+/**
+ * Sync moltbot config to R2 with full protection mechanism.
+ *
+ * This function:
+ * 1. Validates local vs remote completeness scores
+ * 2. Blocks or warns on dangerous syncs
+ * 3. Auto-creates snapshots before dangerous operations
+ * 4. Records conflict alerts for admin UI
+ *
+ * @param sandbox - The sandbox instance
+ * @param env - Worker environment bindings
+ * @param options - Sync options
+ * @returns SyncResult with validation and protection details
+ */
+export async function syncToR2WithProtection(
+  sandbox: Sandbox,
+  env: MoltbotEnv,
+  options: {
+    force?: boolean;         // Force sync even if blocked
+    skipValidation?: boolean; // Skip validation (for testing)
+  } = {}
+): Promise<SyncResult> {
+  const config = getSyncValidatorConfig(env);
+
+  // If protection disabled or skip validation, just run normal sync
+  if (!config.enabled || options.skipValidation) {
+    return syncToR2(sandbox, env);
+  }
+
+  // Validate the sync
+  console.log('[Sync] Validating sync...');
+  const validation = await validateSync(sandbox, env);
+
+  console.log(`[Sync] Validation result: ${validation.action} (local: ${validation.localScore.score}, remote: ${validation.remoteScore.score})`);
+
+  // Handle based on validation result
+  if (validation.action === 'allow') {
+    // Safe to sync
+    const result = await syncToR2(sandbox, env);
+    return { ...result, validation };
+  }
+
+  if (validation.action === 'warn' || validation.action === 'block') {
+    // Dangerous sync detected
+    console.log(`[Sync] Dangerous sync detected: ${validation.reason}`);
+
+    // Handle the dangerous sync (create snapshot, record alert)
+    const protection = await handleDangerousSync(sandbox, env, validation);
+
+    // If blocked and not forced, return error
+    if (protection.blocked && !options.force) {
+      return {
+        success: false,
+        error: 'Sync blocked by protection',
+        details: validation.reason,
+        validation,
+        blocked: true,
+        snapshotId: protection.snapshotId,
+        alertId: protection.alertId,
+      };
+    }
+
+    // If forced or just warned, proceed with sync
+    if (options.force || validation.action === 'warn') {
+      console.log(`[Sync] Proceeding with sync (${options.force ? 'forced' : 'warned'})`);
+      const result = await syncToR2(sandbox, env);
+      return {
+        ...result,
+        validation,
+        blocked: false,
+        snapshotId: protection.snapshotId,
+        alertId: protection.alertId,
+      };
+    }
+  }
+
+  // Default: block
+  return {
+    success: false,
+    error: 'Sync blocked by protection',
+    details: validation.reason,
+    validation,
+    blocked: true,
+  };
 }

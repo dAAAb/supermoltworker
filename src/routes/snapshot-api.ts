@@ -42,7 +42,7 @@ snapshotApi.get('/', async (c) => {
 
 /**
  * POST /api/admin/snapshots - Create a new snapshot
- * Body: { description?: string, trigger?: 'manual' | 'auto' | 'pre-evolution' }
+ * Body: { description?: string, trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart' }
  */
 snapshotApi.post('/', async (c) => {
   const sandbox = c.get('sandbox');
@@ -51,7 +51,7 @@ snapshotApi.post('/', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const { description, trigger } = body as {
       description?: string;
-      trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync';
+      trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart';
     };
 
     const result = await createSnapshot(sandbox, c.env, {

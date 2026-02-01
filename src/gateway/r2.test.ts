@@ -76,7 +76,7 @@ describe('mountR2Storage', () => {
 
       expect(result).toBe(true);
       expect(mountBucketMock).toHaveBeenCalledWith(
-        'moltbot-data',
+        'super-moltbot-data',
         '/data/moltbot',
         {
           endpoint: 'https://account123.r2.cloudflarestorage.com',

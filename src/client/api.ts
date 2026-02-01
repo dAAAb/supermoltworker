@@ -149,7 +149,7 @@ export interface SnapshotMetadata {
   id: string;
   timestamp: string;
   description: string;
-  trigger: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync';
+  trigger: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart';
   version: number;
   files: {
     clawdbotJson: boolean;
@@ -211,7 +211,7 @@ export async function listSnapshots(): Promise<SnapshotListResponse> {
 
 export async function createSnapshot(
   description?: string,
-  trigger?: 'manual' | 'auto' | 'pre-evolution'
+  trigger?: 'manual' | 'auto' | 'pre-evolution' | 'pre-sync' | 'pre-restart'
 ): Promise<SnapshotCreateResponse> {
   return apiRequest<SnapshotCreateResponse>('/snapshots', {
     method: 'POST',
