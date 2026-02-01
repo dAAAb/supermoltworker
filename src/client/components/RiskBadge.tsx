@@ -31,13 +31,13 @@ export default function RiskBadge({ level, showLabel = true, size = 'md' }: Risk
   const getLabel = () => {
     switch (level) {
       case 'safe':
-        return '安全';
+        return 'Safe';
       case 'medium':
-        return '中風險';
+        return 'Medium';
       case 'high':
-        return '高風險';
+        return 'High';
       default:
-        return '未知';
+        return 'Unknown';
     }
   };
 

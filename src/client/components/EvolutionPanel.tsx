@@ -137,19 +137,19 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'pending':
-        return '待確認';
+        return 'Pending';
       case 'approved':
-        return '已核准';
+        return 'Approved';
       case 'rejected':
-        return '已拒絕';
+        return 'Rejected';
       case 'applied':
-        return '已應用';
+        return 'Applied';
       case 'failed':
-        return '失敗';
+        return 'Failed';
       case 'rolled_back':
-        return '已回滾';
+        return 'Rolled Back';
       case 'expired':
-        return '已過期';
+        return 'Expired';
       default:
         return status;
     }
@@ -168,13 +168,13 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
     try {
       const date = new Date(isoString);
       const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-      if (seconds < 60) return `${seconds}秒前`;
+      if (seconds < 60) return `${seconds}s ago`;
       const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) return `${minutes}分鐘前`;
+      if (minutes < 60) return `${minutes}m ago`;
       const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours}小時前`;
+      if (hours < 24) return `${hours}h ago`;
       const days = Math.floor(hours / 24);
-      return `${days}天前`;
+      return `${days}d ago`;
     } catch {
       return isoString;
     }
@@ -184,7 +184,7 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
     return (
       <div className="evolution-panel loading">
         <div className="spinner"></div>
-        <p>載入進化紀錄中...</p>
+        <p>Loading evolution records...</p>
       </div>
     );
   }
@@ -194,7 +194,7 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
       {error && (
         <div className="panel-error">
           <span>{error}</span>
-          <button onClick={() => setError(null)}>關閉</button>
+          <button onClick={() => setError(null)}>Close</button>
         </div>
       )}
 
@@ -204,7 +204,7 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
           className={`view-tab ${activeView === 'pending' ? 'active' : ''}`}
           onClick={() => setActiveView('pending')}
         >
-          待確認
+          Pending
           {pending.length > 0 && (
             <span className="tab-badge">{pending.length}</span>
           )}
@@ -213,10 +213,10 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
           className={`view-tab ${activeView === 'history' ? 'active' : ''}`}
           onClick={() => setActiveView('history')}
         >
-          歷史紀錄
+          History
         </button>
         <button className="refresh-btn" onClick={fetchAll} disabled={loading}>
-          重新整理
+          Refresh
         </button>
       </div>
 
@@ -226,8 +226,8 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
           {pending.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">✨</span>
-              <p>目前沒有待確認的進化請求</p>
-              <p className="empty-hint">當小龍蝦嘗試修改高風險設定時，會在這裡顯示</p>
+              <p>No pending evolution requests</p>
+              <p className="empty-hint">When moltbot attempts to modify high-risk settings, they will be shown here</p>
             </div>
           ) : (
             <div className="evolution-list">
@@ -240,17 +240,17 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
                   </div>
                   <div className="card-details">
                     <div className="detail-row">
-                      <span className="detail-label">請求 ID：</span>
+                      <span className="detail-label">Request ID:</span>
                       <code className="detail-value">{evo.id}</code>
                     </div>
                     {evo.source && (
                       <div className="detail-row">
-                        <span className="detail-label">來源：</span>
+                        <span className="detail-label">Source:</span>
                         <span className="channel-tag">{evo.source.channel}</span>
                       </div>
                     )}
                     <div className="detail-row">
-                      <span className="detail-label">時間：</span>
+                      <span className="detail-label">Time:</span>
                       <span className="detail-value" title={formatTime(evo.createdAt)}>
                         {formatTimeAgo(evo.createdAt)}
                       </span>
@@ -261,7 +261,7 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
                       className="btn btn-primary btn-sm"
                       onClick={() => setSelectedEvolution(evo)}
                     >
-                      查看詳情
+                      View Details
                     </button>
                   </div>
                 </div>
@@ -277,7 +277,7 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
           {history.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">📜</span>
-              <p>還沒有進化歷史紀錄</p>
+              <p>No evolution history yet</p>
             </div>
           ) : (
             <div className="evolution-list">
@@ -292,24 +292,24 @@ export default function EvolutionPanel({ onEvolutionChange }: EvolutionPanelProp
                   </div>
                   <div className="card-details">
                     <div className="detail-row">
-                      <span className="detail-label">風險等級：</span>
+                      <span className="detail-label">Risk Level:</span>
                       <RiskBadge level={evo.analysis.overallRisk} size="sm" />
                     </div>
                     {evo.source && (
                       <div className="detail-row">
-                        <span className="detail-label">來源：</span>
+                        <span className="detail-label">Source:</span>
                         <span className="channel-tag">{evo.source.channel}</span>
                       </div>
                     )}
                     <div className="detail-row">
-                      <span className="detail-label">時間：</span>
+                      <span className="detail-label">Time:</span>
                       <span className="detail-value" title={formatTime(evo.updatedAt)}>
                         {formatTimeAgo(evo.updatedAt)}
                       </span>
                     </div>
                     {evo.snapshotId && (
                       <div className="detail-row">
-                        <span className="detail-label">快照：</span>
+                        <span className="detail-label">Snapshot:</span>
                         <code className="detail-value">{evo.snapshotId}</code>
                       </div>
                     )}

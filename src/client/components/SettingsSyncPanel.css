@@ -1,8 +1,7 @@
 /* Settings Sync Panel Styles */
 
 .settings-sync-panel {
-  max-width: 1000px;
-  margin: 0 auto;
+  /* No max-width - let parent control width */
 }
 
 .settings-sync-panel.loading {

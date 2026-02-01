@@ -42,7 +42,7 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: '重置前最終快照',
+          description: 'Final snapshot before reset',
           trigger: 'pre-reset',
         }),
       });
@@ -116,28 +116,28 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">🔄</span>
-              <h2>完全重置精靈</h2>
+              <h2>Full Reset Wizard</h2>
             </div>
             <div className="step-content">
               <p className="intro-text">
-                此精靈將引導您完全重置小龍蝦的狀態。
-                重置後，所有設定將回到預設值。
+                This wizard will guide you through completely resetting moltbot's state.
+                After reset, all settings will return to defaults.
               </p>
               <div className="warning-box">
                 <span className="warning-icon">⚠️</span>
                 <div>
-                  <strong>注意</strong>
-                  <p>此操作無法復原，但您可以選擇保留部分資料，
-                  並在重置前創建快照以備需要時回滾。</p>
+                  <strong>Warning</strong>
+                  <p>This action cannot be undone, but you can choose to preserve certain data
+                  and create a snapshot before reset for rollback if needed.</p>
                 </div>
               </div>
             </div>
             <div className="step-actions">
               <button className="btn btn-secondary" onClick={onCancel}>
-                取消
+                Cancel
               </button>
               <button className="btn btn-primary" onClick={() => setStep('options')}>
-                開始 →
+                Start →
               </button>
             </div>
           </div>
@@ -148,10 +148,10 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">📋</span>
-              <h2>選擇保留項目</h2>
+              <h2>Select Data to Preserve</h2>
             </div>
             <div className="step-content">
-              <p className="options-intro">選擇重置後要保留的資料：</p>
+              <p className="options-intro">Choose what data to keep after reset:</p>
               <div className="options-list">
                 <label className="option-item">
                   <input
@@ -160,8 +160,8 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                     onChange={() => toggleOption('preserveConversations')}
                   />
                   <div className="option-content">
-                    <span className="option-label">💬 保留對話歷史</span>
-                    <span className="option-desc">保留所有通道的對話紀錄</span>
+                    <span className="option-label">💬 Preserve Conversations</span>
+                    <span className="option-desc">Keep conversation history from all channels</span>
                   </div>
                 </label>
                 <label className="option-item">
@@ -171,8 +171,8 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                     onChange={() => toggleOption('preservePairedDevices')}
                   />
                   <div className="option-content">
-                    <span className="option-label">📱 保留配對設備</span>
-                    <span className="option-desc">重置後不需重新配對</span>
+                    <span className="option-label">📱 Preserve Paired Devices</span>
+                    <span className="option-desc">No need to re-pair after reset</span>
                   </div>
                 </label>
                 <label className="option-item">
@@ -182,8 +182,8 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                     onChange={() => toggleOption('preserveCustomSkills')}
                   />
                   <div className="option-content">
-                    <span className="option-label">🔧 保留自訂技能</span>
-                    <span className="option-desc">保留您創建的 skills 檔案</span>
+                    <span className="option-label">🔧 Preserve Custom Skills</span>
+                    <span className="option-desc">Keep your custom skills files</span>
                   </div>
                 </label>
                 <label className="option-item highlighted">
@@ -193,18 +193,18 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                     onChange={() => toggleOption('createFinalSnapshot')}
                   />
                   <div className="option-content">
-                    <span className="option-label">💾 創建最終快照</span>
-                    <span className="option-desc">重置前備份，可隨時回滾（建議勾選）</span>
+                    <span className="option-label">💾 Create Final Snapshot</span>
+                    <span className="option-desc">Backup before reset, can rollback anytime (recommended)</span>
                   </div>
                 </label>
               </div>
             </div>
             <div className="step-actions">
               <button className="btn btn-secondary" onClick={() => setStep('intro')}>
-                ← 上一步
+                ← Back
               </button>
               <button className="btn btn-primary" onClick={() => setStep('confirm')}>
-                下一步 →
+                Next →
               </button>
             </div>
           </div>
@@ -215,7 +215,7 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">✅</span>
-              <h2>確認重置</h2>
+              <h2>Confirm Reset</h2>
             </div>
             <div className="step-content">
               {error && (
@@ -225,57 +225,57 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                 </div>
               )}
               <div className="confirm-summary">
-                <h3>重置摘要</h3>
+                <h3>Reset Summary</h3>
                 <div className="summary-list">
                   <div className="summary-item">
                     <span className="summary-icon">
                       {options.preserveConversations ? '✓' : '✗'}
                     </span>
-                    <span>對話歷史</span>
+                    <span>Conversations</span>
                     <span className={options.preserveConversations ? 'keep' : 'delete'}>
-                      {options.preserveConversations ? '保留' : '刪除'}
+                      {options.preserveConversations ? 'Keep' : 'Delete'}
                     </span>
                   </div>
                   <div className="summary-item">
                     <span className="summary-icon">
                       {options.preservePairedDevices ? '✓' : '✗'}
                     </span>
-                    <span>配對設備</span>
+                    <span>Paired Devices</span>
                     <span className={options.preservePairedDevices ? 'keep' : 'delete'}>
-                      {options.preservePairedDevices ? '保留' : '刪除'}
+                      {options.preservePairedDevices ? 'Keep' : 'Delete'}
                     </span>
                   </div>
                   <div className="summary-item">
                     <span className="summary-icon">
                       {options.preserveCustomSkills ? '✓' : '✗'}
                     </span>
-                    <span>自訂技能</span>
+                    <span>Custom Skills</span>
                     <span className={options.preserveCustomSkills ? 'keep' : 'delete'}>
-                      {options.preserveCustomSkills ? '保留' : '刪除'}
+                      {options.preserveCustomSkills ? 'Keep' : 'Delete'}
                     </span>
                   </div>
                   <div className="summary-item">
                     <span className="summary-icon">
                       {options.createFinalSnapshot ? '✓' : '✗'}
                     </span>
-                    <span>最終快照</span>
+                    <span>Final Snapshot</span>
                     <span className={options.createFinalSnapshot ? 'keep' : 'delete'}>
-                      {options.createFinalSnapshot ? '創建' : '跳過'}
+                      {options.createFinalSnapshot ? 'Create' : 'Skip'}
                     </span>
                   </div>
                 </div>
               </div>
               <div className="final-warning">
                 <span>⚠️</span>
-                <span>點擊「執行重置」後將立即開始重置程序。</span>
+                <span>Clicking "Execute Reset" will immediately start the reset process.</span>
               </div>
             </div>
             <div className="step-actions">
               <button className="btn btn-secondary" onClick={() => setStep('options')}>
-                ← 上一步
+                ← Back
               </button>
               <button className="btn btn-danger" onClick={handleProceed}>
-                執行重置
+                Execute Reset
               </button>
             </div>
           </div>
@@ -286,11 +286,11 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">💾</span>
-              <h2>創建快照中...</h2>
+              <h2>Creating Snapshot...</h2>
             </div>
             <div className="step-content center">
               <div className="spinner large"></div>
-              <p>正在創建最終快照，請稍候...</p>
+              <p>Creating final snapshot, please wait...</p>
             </div>
           </div>
         )}
@@ -300,7 +300,7 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">🔄</span>
-              <h2>重置中...</h2>
+              <h2>Resetting...</h2>
             </div>
             <div className="step-content center">
               <div className="progress-container">
@@ -312,10 +312,10 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
                 </div>
                 <span className="progress-text">{progress}%</span>
               </div>
-              <p>正在重置小龍蝦狀態，請勿關閉此頁面...</p>
+              <p>Resetting moltbot state, please do not close this page...</p>
               {snapshotId && (
                 <p className="snapshot-note">
-                  快照已創建：<code>{snapshotId}</code>
+                  Snapshot created: <code>{snapshotId}</code>
                 </p>
               )}
             </div>
@@ -327,24 +327,24 @@ export default function ResetWizard({ onComplete, onCancel }: ResetWizardProps) 
           <div className="wizard-step">
             <div className="step-header">
               <span className="step-icon">🎉</span>
-              <h2>重置完成！</h2>
+              <h2>Reset Complete!</h2>
             </div>
             <div className="step-content center">
               <div className="success-icon">✅</div>
-              <p>小龍蝦已成功重置為初始狀態。</p>
+              <p>Moltbot has been successfully reset to initial state.</p>
               {snapshotId && (
                 <div className="snapshot-info">
                   <span>💾</span>
-                  <span>已創建快照 <code>{snapshotId}</code>，可隨時回滾。</span>
+                  <span>Snapshot <code>{snapshotId}</code> created, you can rollback anytime.</span>
                 </div>
               )}
               <p className="restart-note">
-                建議重新啟動 Gateway 以確保所有變更生效。
+                It is recommended to restart the Gateway to ensure all changes take effect.
               </p>
             </div>
             <div className="step-actions center">
               <button className="btn btn-primary" onClick={onComplete}>
-                完成
+                Done
               </button>
             </div>
           </div>

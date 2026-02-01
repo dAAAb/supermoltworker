@@ -18,11 +18,11 @@ import './SettingsSyncPanel.css';
 type CategoryKey = 'secrets' | 'channels' | 'agents' | 'gateway' | 'other';
 
 const CATEGORY_LABELS: Record<CategoryKey, { label: string; icon: string }> = {
-  secrets: { label: '機密設定', icon: '🔴' },
-  channels: { label: 'Channel 設定', icon: '🟡' },
-  agents: { label: 'Agent/Model 設定', icon: '🟢' },
-  gateway: { label: 'Gateway 設定', icon: '🔵' },
-  other: { label: '其他設定', icon: '⚪' },
+  secrets: { label: 'Secrets', icon: '🔴' },
+  channels: { label: 'Channel Settings', icon: '🟡' },
+  agents: { label: 'Agent/Model Settings', icon: '🟢' },
+  gateway: { label: 'Gateway Settings', icon: '🔵' },
+  other: { label: 'Other Settings', icon: '⚪' },
 };
 
 function getStatusIcon(status: string) {
@@ -45,15 +45,15 @@ function getStatusIcon(status: string) {
 function getStatusLabel(status: string) {
   switch (status) {
     case 'synced':
-      return '已同步';
+      return 'Synced';
     case 'unsynced':
-      return '未同步';
+      return 'Unsynced';
     case 'env_only':
-      return '僅環境變數';
+      return 'Env Only';
     case 'not_set':
-      return '未設定';
+      return 'Not Set';
     case 'conflict':
-      return '衝突';
+      return 'Conflict';
     default:
       return status;
   }
@@ -62,9 +62,9 @@ function getStatusLabel(status: string) {
 function getPriorityBadge(priority: string) {
   switch (priority) {
     case 'critical':
-      return <span className="priority-badge critical">關鍵</span>;
+      return <span className="priority-badge critical">Critical</span>;
     case 'important':
-      return <span className="priority-badge important">重要</span>;
+      return <span className="priority-badge important">Important</span>;
     default:
       return null;
   }
@@ -99,7 +99,7 @@ function CommandsModal({ isOpen, onClose, commandsData, loading, category }: Com
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>📋 Wrangler 環境變數設定指令</h3>
+          <h3>📋 Wrangler Secret Commands</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
@@ -107,28 +107,28 @@ function CommandsModal({ isOpen, onClose, commandsData, loading, category }: Com
           {loading ? (
             <div className="modal-loading">
               <div className="spinner" />
-              <p>載入中...</p>
+              <p>Loading...</p>
             </div>
           ) : commandsData?.commands && commandsData.commands.length > 0 ? (
             <>
               <p className="modal-intro">
-                請在終端機執行以下指令，將設定備份到 Cloudflare 環境變數：
+                Run the following commands in your terminal to backup settings to Cloudflare environment variables:
               </p>
               <div className="commands-box">
                 <pre>{commandsData.commandsText}</pre>
               </div>
               <div className="modal-notes">
-                <p>⚠️ <strong>注意：</strong></p>
+                <p>⚠️ <strong>Note:</strong></p>
                 <ul>
-                  <li>這些指令需要在專案目錄下執行</li>
-                  <li>執行後需要重新部署才會生效</li>
-                  <li>機密資訊請勿分享給他人</li>
+                  <li>These commands must be run in the project directory</li>
+                  <li>Redeploy is required for changes to take effect</li>
+                  <li>Do not share sensitive information with others</li>
                 </ul>
               </div>
             </>
           ) : (
             <div className="no-commands">
-              <p>✅ 目前 {category === 'all' ? '所有' : CATEGORY_LABELS[category as CategoryKey]?.label} 設定已同步或無需同步</p>
+              <p>✅ All {category === 'all' ? '' : CATEGORY_LABELS[category as CategoryKey]?.label + ' '}settings are synced or don't need syncing</p>
             </div>
           )}
         </div>
@@ -140,11 +140,11 @@ function CommandsModal({ isOpen, onClose, commandsData, loading, category }: Com
               onClick={handleCopy}
               disabled={loading}
             >
-              {copied ? '✓ 已複製' : '📋 複製到剪貼簿'}
+              {copied ? '✓ Copied' : '📋 Copy to Clipboard'}
             </button>
           )}
           <button className="btn btn-secondary" onClick={onClose}>
-            關閉
+            Close
           </button>
         </div>
       </div>
@@ -161,7 +161,7 @@ function SettingsTable({ category, items }: SettingsTableProps) {
   if (items.length === 0) {
     return (
       <div className="empty-category">
-        <p>此類別無設定項目</p>
+        <p>No settings in this category</p>
       </div>
     );
   }
@@ -170,10 +170,10 @@ function SettingsTable({ category, items }: SettingsTableProps) {
     <table className="settings-table">
       <thead>
         <tr>
-          <th>設定項目</th>
+          <th>Setting</th>
           <th>clawdbot.json</th>
-          <th>環境變數</th>
-          <th>狀態</th>
+          <th>Env Variable</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -270,7 +270,7 @@ export default function SettingsSyncPanel() {
     return (
       <div className="settings-sync-panel loading">
         <div className="spinner" />
-        <p>載入設定同步狀態...</p>
+        <p>Loading sync status...</p>
       </div>
     );
   }
@@ -281,7 +281,7 @@ export default function SettingsSyncPanel() {
         <div className="error-banner">
           <span>{error}</span>
           <button onClick={() => { setError(null); fetchSyncStatus(); }}>
-            重試
+            Retry
           </button>
         </div>
       </div>
@@ -300,16 +300,16 @@ export default function SettingsSyncPanel() {
       <section className="sync-summary">
         <div className="summary-icon">📊</div>
         <div className="summary-content">
-          <h3>同步摘要</h3>
+          <h3>Sync Summary</h3>
           <div className="summary-stats">
             <span className="stat stat-synced">
-              ✅ 已同步: <strong>{summary.synced}</strong> 項
+              ✅ Synced: <strong>{summary.synced}</strong>
             </span>
             <span className="stat stat-unsynced">
-              ⚠️ 未同步: <strong>{summary.unsynced}</strong> 項
+              ⚠️ Unsynced: <strong>{summary.unsynced}</strong>
             </span>
             <span className="stat stat-env-only">
-              📦 僅環境變數: <strong>{summary.envOnly}</strong> 項
+              📦 Env Only: <strong>{summary.envOnly}</strong>
             </span>
           </div>
         </div>
@@ -318,7 +318,7 @@ export default function SettingsSyncPanel() {
             className="btn btn-secondary"
             onClick={fetchSyncStatus}
           >
-            重新整理
+            Refresh
           </button>
         </div>
       </section>
@@ -328,14 +328,14 @@ export default function SettingsSyncPanel() {
         <div className="unsynced-warning">
           <span className="warning-icon">⚠️</span>
           <div className="warning-content">
-            <strong>有 {summary.unsynced} 個設定尚未同步到環境變數</strong>
-            <p>這些設定目前只存在 clawdbot.json，如果 R2 儲存發生問題可能會丟失。建議同步到環境變數作為備份。</p>
+            <strong>{summary.unsynced} setting(s) not synced to environment variables</strong>
+            <p>These settings only exist in clawdbot.json and may be lost if R2 storage fails. Recommended to sync to environment variables as backup.</p>
           </div>
           <button
             className="btn btn-primary"
             onClick={() => handleExportCommands('all')}
           >
-            📋 複製同步指令
+            📋 Copy Sync Commands
           </button>
         </div>
       )}
@@ -352,7 +352,7 @@ export default function SettingsSyncPanel() {
                 <span className="category-icon">{icon}</span>
                 {label}
                 {unsyncedCount > 0 && (
-                  <span className="unsynced-count">{unsyncedCount} 未同步</span>
+                  <span className="unsynced-count">{unsyncedCount} unsynced</span>
                 )}
               </h3>
               {unsyncedCount > 0 && (
@@ -360,7 +360,7 @@ export default function SettingsSyncPanel() {
                   className="btn btn-sm btn-secondary"
                   onClick={() => handleExportCommands(category)}
                 >
-                  📋 複製指令
+                  📋 Copy Commands
                 </button>
               )}
             </div>
@@ -376,13 +376,13 @@ export default function SettingsSyncPanel() {
           onClick={() => handleExportCommands('all')}
           disabled={summary.unsynced === 0}
         >
-          📋 複製所有未同步設定的指令
+          📋 Copy All Unsynced Commands
         </button>
         <button
           className="btn btn-secondary btn-lg"
           onClick={() => handleExportCommands('secrets')}
         >
-          📋 僅複製機密設定指令
+          📋 Copy Secrets Only
         </button>
       </section>
 

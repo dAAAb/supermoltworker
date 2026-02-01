@@ -1,8 +1,7 @@
 /* Health Dashboard Styles */
 
 .health-dashboard {
-  max-width: 900px;
-  margin: 0 auto;
+  /* No max-width - let parent control width */
 }
 
 .health-dashboard.loading {

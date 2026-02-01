@@ -245,15 +245,15 @@ export default function AdminPage() {
         <div className="evolution-tab-content">
           <EvolutionPanel onEvolutionChange={fetchDevices} />
           <div className="reset-section">
-            <h3>完全重置</h3>
+            <h3>Full Reset</h3>
             <p className="hint">
-              如果小龍蝦陷入無法恢復的狀態，可以使用完全重置功能將其恢復到初始狀態。
+              If moltbot is in an unrecoverable state, use the full reset feature to restore it to its initial state.
             </p>
             <button
               className="btn btn-danger"
               onClick={() => setShowResetWizard(true)}
             >
-              開啟重置精靈
+              Open Reset Wizard
             </button>
           </div>
         </div>

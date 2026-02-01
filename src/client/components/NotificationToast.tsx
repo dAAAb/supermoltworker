@@ -134,20 +134,20 @@ export function NotificationToast({
         {notification.data?.evolution && (
           <div className="toast-evolution-details">
             <div className="evolution-path">
-              <span className="label">修改目標：</span>
+              <span className="label">Target:</span>
               <code>{notification.data.evolution.targetPath}</code>
             </div>
             <div className={`evolution-risk risk-${notification.data.evolution.riskLevel}`}>
-              <span className="label">風險等級：</span>
+              <span className="label">Risk Level:</span>
               <span className="value">
-                {notification.data.evolution.riskLevel === 'high' && '🔴 高'}
-                {notification.data.evolution.riskLevel === 'medium' && '🟡 中'}
-                {notification.data.evolution.riskLevel === 'safe' && '🟢 安全'}
+                {notification.data.evolution.riskLevel === 'high' && '🔴 High'}
+                {notification.data.evolution.riskLevel === 'medium' && '🟡 Medium'}
+                {notification.data.evolution.riskLevel === 'safe' && '🟢 Safe'}
               </span>
             </div>
             {notification.data.evolution.snapshotId && (
               <div className="evolution-snapshot">
-                <span className="label">已創建快照：</span>
+                <span className="label">Snapshot Created:</span>
                 <code>{notification.data.evolution.snapshotId}</code>
               </div>
             )}
@@ -173,7 +173,7 @@ export function NotificationToast({
       <button
         className="toast-close"
         onClick={handleDismiss}
-        aria-label="關閉通知"
+        aria-label="Close notification"
       >
         ×
       </button>
@@ -207,7 +207,7 @@ export function NotificationContainer({
   }
 
   return (
-    <div className="notification-container" role="region" aria-label="通知">
+    <div className="notification-container" role="region" aria-label="Notifications">
       {visibleNotifications.map(notification => (
         <NotificationToast
           key={notification.id}
@@ -219,7 +219,7 @@ export function NotificationContainer({
 
       {notifications.length > maxVisible && (
         <div className="notification-overflow">
-          還有 {notifications.length - maxVisible} 則通知
+          +{notifications.length - maxVisible} more notifications
         </div>
       )}
     </div>

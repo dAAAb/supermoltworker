@@ -80,7 +80,7 @@ export default function EvolutionConfirmDialog({
           <span className="dialog-icon">
             {evolution.riskLevel === 'high' ? '⚠️' : evolution.riskLevel === 'medium' ? '🔔' : '📝'}
           </span>
-          <h2>小龍蝦想要進化！</h2>
+          <h2>Moltbot Wants to Evolve!</h2>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -93,34 +93,34 @@ export default function EvolutionConfirmDialog({
           )}
 
           <p className="dialog-description">
-            moltbot 正在嘗試修改以下{evolution.riskLevel === 'high' ? '高風險' : evolution.riskLevel === 'medium' ? '中風險' : ''}設定：
+            moltbot is attempting to modify the following {evolution.riskLevel === 'high' ? 'high-risk ' : evolution.riskLevel === 'medium' ? 'medium-risk ' : ''}settings:
           </p>
 
           <div className="change-info">
             <div className="info-row">
-              <span className="info-label">修改項目：</span>
+              <span className="info-label">Target:</span>
               <code className="info-value">{evolution.targetPath}</code>
             </div>
             <div className="info-row">
-              <span className="info-label">風險等級：</span>
+              <span className="info-label">Risk Level:</span>
               <RiskBadge level={evolution.riskLevel} />
             </div>
             {evolution.source && (
               <div className="info-row">
-                <span className="info-label">來源通道：</span>
+                <span className="info-label">Source Channel:</span>
                 <span className="info-value channel-badge">{evolution.source.channel}</span>
               </div>
             )}
             {evolution.reason && (
               <div className="info-row">
-                <span className="info-label">修改原因：</span>
+                <span className="info-label">Reason:</span>
                 <span className="info-value">{evolution.reason}</span>
               </div>
             )}
           </div>
 
           <div className="changes-section">
-            <h3>變更內容</h3>
+            <h3>Changes</h3>
             <div className="changes-diff">
               {evolution.changes.map((change, index) => (
                 <div key={index} className="change-item">
@@ -143,7 +143,7 @@ export default function EvolutionConfirmDialog({
           {evolution.snapshotId && (
             <div className="snapshot-info">
               <span className="snapshot-icon">💾</span>
-              <span>已自動創建快照：<code>{evolution.snapshotId}</code>（可隨時回滾）</span>
+              <span>Snapshot created: <code>{evolution.snapshotId}</code> (can rollback anytime)</span>
             </div>
           )}
         </div>
@@ -154,14 +154,14 @@ export default function EvolutionConfirmDialog({
             onClick={() => handleAction('approve')}
             disabled={processing !== null}
           >
-            {processing === 'approve' ? '處理中...' : '✅ 允許'}
+            {processing === 'approve' ? 'Processing...' : '✅ Approve'}
           </button>
           <button
             className="btn btn-danger"
             onClick={() => handleAction('reject')}
             disabled={processing !== null}
           >
-            {processing === 'reject' ? '處理中...' : '❌ 拒絕'}
+            {processing === 'reject' ? 'Processing...' : '❌ Reject'}
           </button>
           {onTest && (
             <button
@@ -169,7 +169,7 @@ export default function EvolutionConfirmDialog({
               onClick={() => handleAction('test')}
               disabled={processing !== null}
             >
-              {processing === 'test' ? '測試中...' : '🧪 先測試'}
+              {processing === 'test' ? 'Testing...' : '🧪 Test First'}
             </button>
           )}
         </div>

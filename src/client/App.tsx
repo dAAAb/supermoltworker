@@ -43,17 +43,17 @@ export default function App() {
         <h1>Super Moltbot Admin</h1>
         <div className="header-status">
           {!connected && (
-            <span className="status-disconnected" title="通知系統離線">
+            <span className="status-disconnected" title="Notification system offline">
               🔴
             </span>
           )}
           {connected && unreadCount > 0 && (
-            <span className="status-badge" title={`${unreadCount} 則未讀通知`}>
+            <span className="status-badge" title={`${unreadCount} unread notification(s)`}>
               {unreadCount}
             </span>
           )}
           {pendingEvolutions.length > 0 && (
-            <span className="evolution-badge" title={`${pendingEvolutions.length} 個進化請求等待處理`}>
+            <span className="evolution-badge" title={`${pendingEvolutions.length} evolution request(s) pending`}>
               🦞 {pendingEvolutions.length}
             </span>
           )}

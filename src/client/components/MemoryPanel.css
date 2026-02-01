@@ -1,6 +1,5 @@
 .memory-panel {
-  max-width: 800px;
-  margin: 0 auto;
+  /* No max-width - let parent control width */
 }
 
 .panel-intro {
