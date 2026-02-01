@@ -238,6 +238,17 @@ function checkAuthMismatch(
 
 /**
  * Check for channel configuration residue
+ *
+ * IMPORTANT: A channel config with a valid token is NOT residue, even if no env var exists.
+ * This is because users can set tokens via chat interface (stored in clawdbot.json).
+ *
+ * True "residue" is when:
+ * - Channel config exists but has NO token (empty or missing)
+ * - OR channel is disabled but config still exists
+ *
+ * If a valid token exists in clawdbot.json but not in env vars, that's just
+ * "unsynced to environment variables" - not a conflict. This should be shown
+ * in the Settings Sync page, not as a conflict.
  */
 function checkChannelResidue(
   config: Record<string, unknown>,
@@ -250,54 +261,68 @@ function checkChannelResidue(
 
   // Check Telegram
   const telegram = channels.telegram as Record<string, unknown> | undefined;
-  if (telegram?.botToken && telegram.botToken !== env.TELEGRAM_BOT_TOKEN) {
-    if (!env.TELEGRAM_BOT_TOKEN) {
+  if (telegram) {
+    const hasValidToken = !!telegram.botToken && String(telegram.botToken).length > 10;
+    const hasEnvToken = !!env.TELEGRAM_BOT_TOKEN;
+
+    // Only flag as residue if config exists but NO valid token anywhere
+    if (!hasValidToken && !hasEnvToken) {
       conflicts.push({
         type: 'channel_residue',
-        severity: 'info',
-        description: 'Telegram configuration exists but no TELEGRAM_BOT_TOKEN in environment',
-        suggestion: 'The old Telegram config will remain unless manually removed',
+        severity: 'warning',
+        description: 'Telegram channel configured but no valid bot token found',
+        suggestion: 'Set up Telegram bot token via chat or remove the channel config',
         autoFixAvailable: true,
-        details: { channel: 'telegram' },
+        details: { channel: 'telegram', hasConfig: true, hasToken: false },
       });
-    } else {
+    }
+    // If tokens differ between config and env, that's a potential issue
+    else if (hasValidToken && hasEnvToken && telegram.botToken !== env.TELEGRAM_BOT_TOKEN) {
       conflicts.push({
         type: 'channel_residue',
         severity: 'warning',
         description: 'Telegram token in config differs from environment variable',
-        suggestion: 'Config will be updated on next startup',
-        autoFixAvailable: true,
-        details: { channel: 'telegram' },
+        suggestion: 'The environment variable will take precedence on restart',
+        autoFixAvailable: false, // Don't auto-fix, user needs to decide which to keep
+        details: { channel: 'telegram', hasConfig: true, hasEnvToken: true, tokenMismatch: true },
       });
     }
+    // If valid token in config but not in env → NOT a conflict, just unsynced
+    // This will be shown in Settings Sync page instead
   }
 
   // Check Discord
   const discord = channels.discord as Record<string, unknown> | undefined;
-  if (discord?.token && discord.token !== env.DISCORD_BOT_TOKEN) {
-    if (!env.DISCORD_BOT_TOKEN) {
+  if (discord) {
+    const hasValidToken = !!discord.token && String(discord.token).length > 10;
+    const hasEnvToken = !!env.DISCORD_BOT_TOKEN;
+
+    if (!hasValidToken && !hasEnvToken) {
       conflicts.push({
         type: 'channel_residue',
-        severity: 'info',
-        description: 'Discord configuration exists but no DISCORD_BOT_TOKEN in environment',
-        suggestion: 'The old Discord config will remain unless manually removed',
+        severity: 'warning',
+        description: 'Discord channel configured but no valid bot token found',
+        suggestion: 'Set up Discord bot token via chat or remove the channel config',
         autoFixAvailable: true,
-        details: { channel: 'discord' },
+        details: { channel: 'discord', hasConfig: true, hasToken: false },
       });
     }
   }
 
   // Check Slack
   const slack = channels.slack as Record<string, unknown> | undefined;
-  if (slack?.botToken && slack.botToken !== env.SLACK_BOT_TOKEN) {
-    if (!env.SLACK_BOT_TOKEN) {
+  if (slack) {
+    const hasValidToken = !!slack.botToken && String(slack.botToken).length > 10;
+    const hasEnvToken = !!env.SLACK_BOT_TOKEN;
+
+    if (!hasValidToken && !hasEnvToken) {
       conflicts.push({
         type: 'channel_residue',
-        severity: 'info',
-        description: 'Slack configuration exists but no SLACK_BOT_TOKEN in environment',
-        suggestion: 'The old Slack config will remain unless manually removed',
+        severity: 'warning',
+        description: 'Slack channel configured but no valid bot token found',
+        suggestion: 'Set up Slack bot token via chat or remove the channel config',
         autoFixAvailable: true,
-        details: { channel: 'slack' },
+        details: { channel: 'slack', hasConfig: true, hasToken: false },
       });
     }
   }

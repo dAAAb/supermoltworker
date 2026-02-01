@@ -388,6 +388,7 @@ app.all('*', async (c) => {
 /**
  * Scheduled handler for cron triggers.
  * Syncs moltbot config/state from container to R2 for persistence.
+ * Also checks for pending env sync reminders (D2 feature).
  */
 async function scheduled(
   _event: ScheduledEvent,
@@ -397,13 +398,34 @@ async function scheduled(
   const options = buildSandboxOptions(env);
   const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
 
+  // 1. Backup sync to R2
   console.log('[cron] Starting backup sync to R2...');
   const result = await syncToR2(sandbox, env);
-  
+
   if (result.success) {
     console.log('[cron] Backup sync completed successfully at', result.lastSync);
   } else {
     console.error('[cron] Backup sync failed:', result.error, result.details || '');
+  }
+
+  // 2. Check for env sync reminders (D2 feature)
+  // Only run every 12 cron cycles (every hour) to avoid too frequent checks
+  const currentMinute = new Date().getMinutes();
+  if (currentMinute < 5) { // Run at the top of every hour
+    console.log('[cron] Checking for env sync reminders...');
+    try {
+      const { checkAndSendReminders } = await import('./gateway/env-sync-reminder');
+      const reminderResult = await checkAndSendReminders(sandbox, env);
+      if (reminderResult.itemCount > 0) {
+        if (reminderResult.sent) {
+          console.log(`[cron] Sent env sync reminder for ${reminderResult.itemCount} items`);
+        } else {
+          console.log(`[cron] ${reminderResult.itemCount} items need sync but reminder not sent: ${reminderResult.error || 'unknown'}`);
+        }
+      }
+    } catch (err) {
+      console.error('[cron] Error checking env sync reminders:', err);
+    }
   }
 }
 

@@ -14,6 +14,7 @@ import { snapshotApi } from './snapshot-api';
 import { notificationApi } from './notification-api';
 import { healthApi } from './health-api';
 import { evolutionApi } from './evolution-api';
+import { settingsSyncApi } from './settings-sync-api';
 import { R2_MOUNT_PATH } from '../config';
 
 // CLI commands can take 10-15 seconds to complete due to WebSocket connection overhead
@@ -470,6 +471,10 @@ adminApi.route('/health', healthApi);
 // Mount evolution API routes under /admin/evolution
 // SuperMoltWorker: Evolution protection and management
 adminApi.route('/evolution', evolutionApi);
+
+// Mount settings sync API routes under /admin/settings
+// SuperMoltWorker: Environment variable sync management
+adminApi.route('/settings', settingsSyncApi);
 
 // POST /api/admin/reset - Complete reset of moltbot state
 // SuperMoltWorker: Reset wizard backend
