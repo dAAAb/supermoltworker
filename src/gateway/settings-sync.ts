@@ -106,12 +106,14 @@ export const SETTING_DEFINITIONS: SettingDefinition[] = [
     isSensitive: true,
   },
   {
-    name: 'GATEWAY_AUTH_TOKEN',
+    name: 'MOLTBOT_GATEWAY_TOKEN',
     displayName: 'Gateway Auth Token',
     category: 'secrets',
     priority: 'critical',
     configPath: 'gateway.auth.token',
     isSensitive: true,
+    // Note: This was previously GATEWAY_AUTH_TOKEN but renamed to match
+    // the actual secret name used by the Worker (MOLTBOT_GATEWAY_TOKEN)
   },
 
   // Channels

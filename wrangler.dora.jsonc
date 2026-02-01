@@ -1,0 +1,82 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moltbot-sandbox",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+  },
+  // Static assets for admin UI (built by vite)
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "html_handling": "auto-trailing-slash",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+  },
+  // Allow importing HTML files as text modules and PNG files as binary
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.html"],
+      "fallthrough": false,
+    },
+    {
+      "type": "Data",
+      "globs": ["**/*.png"],
+      "fallthrough": false,
+    },
+  ],
+  // Build command for vite
+  "build": {
+    "command": "npm run build",
+  },
+  // Container configuration for Dora's Moltbot (龍蝦沙拉)
+  "containers": [
+    {
+      "name": "moltbot-v2",
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      "instance_type": "standard-4",
+      "max_instances": 1,
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Sandbox",
+        "name": "Sandbox",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["Sandbox"],
+      "tag": "v1",
+    },
+  ],
+  // R2 bucket for Dora's moltbot data
+  "r2_buckets": [
+    {
+      "binding": "MOLTBOT_BUCKET",
+      "bucket_name": "moltbot-data",
+    },
+  ],
+  // Cron trigger to sync moltbot data to R2 every 5 minutes
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
+  // Browser Rendering binding for CDP shim
+  "browser": {
+    "binding": "BROWSER",
+  },
+  // Dora's moltbot secrets (already configured):
+  // - ANTHROPIC_API_KEY
+  // - CF_ACCESS_AUD
+  // - CF_ACCESS_TEAM_DOMAIN
+  // - CF_ACCOUNT_ID
+  // - MOLTBOT_GATEWAY_TOKEN
+  // - R2_ACCESS_KEY_ID
+  // - R2_SECRET_ACCESS_KEY
+}
