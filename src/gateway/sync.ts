@@ -64,56 +64,58 @@ function removeNestedField(obj: Record<string, unknown>, path: string): boolean 
 }
 
 /**
- * Sanitize clawdbot.json before syncing to R2.
- * Removes sensitive fields that should be "Env Only by design".
+ * Sanitize the R2 COPY of clawdbot.json AFTER syncing.
+ * This removes sensitive fields from the R2 backup WITHOUT touching the live config.
+ *
+ * IMPORTANT: We sanitize the R2 copy, NOT the live config!
+ * The live config needs the API keys to function.
  *
  * @param sandbox - The sandbox instance
  * @returns List of fields that were sanitized
  */
-async function sanitizeConfigBeforeSync(sandbox: Sandbox): Promise<string[]> {
-  const configPath = '/root/.clawdbot/clawdbot.json';
+async function sanitizeR2ConfigAfterSync(sandbox: Sandbox): Promise<string[]> {
+  const r2ConfigPath = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
   const sanitized: string[] = [];
 
   try {
-    // Read current config
-    const readProc = await sandbox.startProcess(`cat ${configPath}`);
+    // Read the R2 copy (NOT the live config!)
+    const readProc = await sandbox.startProcess(`cat ${r2ConfigPath} 2>/dev/null`);
     await waitForProcess(readProc, 5000);
     const readLogs = await readProc.getLogs();
 
     if (!readLogs.stdout?.trim()) {
-      console.log('[Sync] No config file to sanitize');
+      console.log('[Sync] No R2 config file to sanitize');
       return [];
     }
 
     const config = JSON.parse(readLogs.stdout.trim());
 
-    // Remove env-only fields
+    // Remove env-only fields from the R2 copy
     for (const field of ENV_ONLY_FIELDS) {
       if (removeNestedField(config, field)) {
         sanitized.push(field);
-        console.log(`[Sync] Sanitized field: ${field}`);
+        console.log(`[Sync] Sanitized R2 field: ${field}`);
       }
     }
 
     if (sanitized.length > 0) {
-      // Write sanitized config back
+      // Write sanitized config back to R2 (NOT to live config!)
       const sanitizedJson = JSON.stringify(config, null, 2);
-      // Use a temp file to avoid shell escaping issues
-      const tempFile = '/tmp/sanitized-config.json';
+      const tempFile = '/tmp/sanitized-r2-config.json';
       const writeProc = await sandbox.startProcess(
         `cat > ${tempFile} << 'SANITIZE_EOF'\n${sanitizedJson}\nSANITIZE_EOF`
       );
       await waitForProcess(writeProc, 5000);
 
-      // Replace original with sanitized version
-      const mvProc = await sandbox.startProcess(`mv ${tempFile} ${configPath}`);
+      // Replace R2 copy with sanitized version
+      const mvProc = await sandbox.startProcess(`mv ${tempFile} ${r2ConfigPath}`);
       await waitForProcess(mvProc, 5000);
 
-      console.log(`[Sync] Sanitized ${sanitized.length} fields before sync`);
+      console.log(`[Sync] Sanitized ${sanitized.length} fields in R2 copy`);
     }
   } catch (err) {
-    console.error('[Sync] Failed to sanitize config:', err);
-    // Continue with sync even if sanitization fails
+    console.error('[Sync] Failed to sanitize R2 config:', err);
+    // Continue even if sanitization fails - the sync already succeeded
   }
 
   return sanitized;
@@ -165,10 +167,6 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     };
   }
 
-  // Sanitize config before sync - remove "Env Only by design" fields
-  // This prevents sensitive API keys from being stored in R2
-  const sanitized = await sanitizeConfigBeforeSync(sandbox);
-
   // Run rsync to backup config to R2
   // Note: Use --no-times because s3fs doesn't support setting timestamps
   const syncCmd = `rsync -r --no-times --delete --exclude='*.lock' --exclude='*.log' --exclude='*.tmp' /root/.clawdbot/ ${R2_MOUNT_PATH}/clawdbot/ && rsync -r --no-times --delete /root/clawd/skills/ ${R2_MOUNT_PATH}/skills/ && date -Iseconds > ${R2_MOUNT_PATH}/.last-sync`;
@@ -186,6 +184,9 @@ export async function syncToR2(sandbox: Sandbox, env: MoltbotEnv): Promise<SyncR
     const lastSync = timestampLogs.stdout?.trim();
     
     if (lastSync && lastSync.match(/^\d{4}-\d{2}-\d{2}/)) {
+      // Sanitize the R2 copy AFTER successful sync
+      // This removes sensitive fields from R2 without touching the live config
+      const sanitized = await sanitizeR2ConfigAfterSync(sandbox);
       return { success: true, lastSync, sanitized };
     } else {
       const logs = await proc.getLogs();
