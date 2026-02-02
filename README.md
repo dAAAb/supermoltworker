@@ -108,9 +108,12 @@ npm install
 npx clawdbot models auth setup-token --provider anthropic
 # Step 2: Set the token (paste the sk-ant-oat01-... token when prompted)
 npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN
+# ✅ That's it! No need to set ANTHROPIC_API_KEY separately
+# The system automatically uses your OAuth token as the API key
 
 # METHOD 2: Direct Anthropic API Key (fallback)
 # Cost: Pay-per-token (expensive for heavy usage)
+# Only needed if you're NOT using METHOD 1
 # npx wrangler secret put ANTHROPIC_API_KEY
 
 # METHOD 3: AI Gateway (optional, for request logging/caching)
@@ -140,6 +143,12 @@ SuperMoltWorker uses the following priority order when multiple auth methods are
 2. **AI_GATEWAY_API_KEY** (when `AI_GATEWAY_BASE_URL` is set)
 3. **ANTHROPIC_API_KEY** (fallback)
 4. **OPENAI_API_KEY** (alternative provider)
+
+**💡 Smart Key Synchronization:**
+When you set `CLAUDE_CODE_OAUTH_TOKEN`, the system automatically uses it as `ANTHROPIC_API_KEY` internally. This means:
+- ✅ You only need to set **ONE** secret: `CLAUDE_CODE_OAUTH_TOKEN`
+- ✅ No need to duplicate the token in `ANTHROPIC_API_KEY`
+- ✅ Simplifies deployment and reduces configuration errors
 
 After deploying, open the Control UI with your token:
 
