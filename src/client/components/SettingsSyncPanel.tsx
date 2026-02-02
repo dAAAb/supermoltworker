@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getSettingsSyncStatus,
   getExportCommands,
+  updateConfigValue,
   type SettingsSyncStatus,
   type SettingItem,
   type ExportCommandsResponse,
@@ -172,9 +173,14 @@ function CommandsModal({ isOpen, onClose, commandsData, loading, category }: Com
 interface SettingsTableProps {
   category: CategoryKey;
   items: SettingItem[];
+  onValueUpdate: (name: string, value: string) => Promise<void>;
 }
 
-function SettingsTable({ category, items }: SettingsTableProps) {
+function SettingsTable({ category, items, onValueUpdate }: SettingsTableProps) {
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
   if (items.length === 0) {
     return (
       <div className="empty-category">
@@ -182,6 +188,29 @@ function SettingsTable({ category, items }: SettingsTableProps) {
       </div>
     );
   }
+
+  const handleEdit = (item: SettingItem) => {
+    setEditingItem(item.name);
+    setEditValue(item.configValue || '');
+  };
+
+  const handleSave = async (name: string) => {
+    setSaving(true);
+    try {
+      await onValueUpdate(name, editValue);
+      setEditingItem(null);
+    } catch (err) {
+      console.error('Failed to save:', err);
+      alert('Failed to save: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingItem(null);
+    setEditValue('');
+  };
 
   return (
     <table className="settings-table">
@@ -201,14 +230,59 @@ function SettingsTable({ category, items }: SettingsTableProps) {
               {getPriorityBadge(item.priority)}
               <span className="display-name">{item.displayName}</span>
             </td>
-            <td className="setting-value">
-              {item.configValue ? (
-                <>
-                  <span className="value-preview">{item.configValue}</span>
-                  <span className="value-check">✓</span>
-                </>
+            <td className="setting-value editable-cell">
+              {editingItem === item.name ? (
+                <div className="edit-container">
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    disabled={saving}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSave(item.name);
+                      } else if (e.key === 'Escape') {
+                        handleCancel();
+                      }
+                    }}
+                  />
+                  <div className="edit-actions">
+                    <button
+                      className="btn-save"
+                      onClick={() => handleSave(item.name)}
+                      disabled={saving}
+                      title="Save (Enter)"
+                    >
+                      {saving ? '...' : '✓'}
+                    </button>
+                    <button
+                      className="btn-cancel"
+                      onClick={handleCancel}
+                      disabled={saving}
+                      title="Cancel (Esc)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <span className="value-empty">─</span>
+                <div
+                  className="value-display"
+                  onClick={() => handleEdit(item)}
+                  title="Click to edit"
+                >
+                  {item.configValue ? (
+                    <>
+                      <span className="value-preview">{item.configValue}</span>
+                      <span className="value-check">✓</span>
+                    </>
+                  ) : (
+                    <span className="value-empty">─ (click to add)</span>
+                  )}
+                  <span className="edit-icon">✎</span>
+                </div>
               )}
             </td>
             <td className="setting-value">
@@ -285,6 +359,20 @@ export default function SettingsSyncPanel() {
     setModalOpen(false);
     setCommandsData(null);
   };
+
+  const handleValueUpdate = useCallback(async (name: string, value: string) => {
+    try {
+      const result = await updateConfigValue(name, value);
+      if (result.success) {
+        // Refresh sync status after update
+        await fetchSyncStatus();
+      } else {
+        throw new Error(result.error || 'Failed to update');
+      }
+    } catch (err) {
+      throw err;
+    }
+  }, [fetchSyncStatus]);
 
   if (loading) {
     return (
@@ -387,7 +475,7 @@ export default function SettingsSyncPanel() {
                 </button>
               )}
             </div>
-            <SettingsTable category={category} items={items} />
+            <SettingsTable category={category} items={items} onValueUpdate={handleValueUpdate} />
           </section>
         );
       })}

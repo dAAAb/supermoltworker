@@ -334,6 +334,17 @@ export async function removePendingSync(name: string): Promise<{ success: boolea
   return apiRequest(`/settings/pending/${name}`, { method: 'DELETE' });
 }
 
+export async function updateConfigValue(
+  name: string,
+  value: string
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  return apiRequest('/settings/update-config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, value }),
+  });
+}
+
 // ============================================================
 // Critical Alerts API
 // ============================================================
