@@ -174,6 +174,7 @@ config.gateway.trustedProxies = ['10.1.0.0'];
 if (process.env.CLAWDBOT_GATEWAY_TOKEN) {
     config.gateway.auth = config.gateway.auth || {};
     config.gateway.auth.token = process.env.CLAWDBOT_GATEWAY_TOKEN;
+    config.gateway.auth.mode = 'token';
 }
 
 // Allow insecure auth for dev mode
