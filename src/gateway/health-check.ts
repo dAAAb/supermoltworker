@@ -107,9 +107,9 @@ export function getCriticalAlerts(env: MoltbotEnv): CriticalAlert[] {
       title: 'AI Provider Not Configured',
       message:
         'No AI provider API key is set. The assistant cannot respond to messages without an API key. ' +
-        'Please set ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY in Cloudflare Secrets.',
+        'Please set CLAUDE_CODE_OAUTH_TOKEN (recommended), ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY in Cloudflare Secrets.',
       action: 'Set API Key',
-      actionCommand: 'npx wrangler secret put ANTHROPIC_API_KEY',
+      actionCommand: 'npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN',
     });
   }
 
@@ -332,16 +332,18 @@ async function checkProviderConfigured(
   // Check environment variables
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const envAny = env as any;
+  const hasClaudeOAuth = !!envAny.CLAUDE_CODE_OAUTH_TOKEN;
   const hasAnthropicKey = !!envAny.ANTHROPIC_API_KEY;
   const hasAIGatewayKey = !!envAny.AI_GATEWAY_API_KEY;
   const hasOpenAIKey = !!envAny.OPENAI_API_KEY;
 
-  if (!hasAnthropicKey && !hasAIGatewayKey && !hasOpenAIKey) {
+  if (!hasClaudeOAuth && !hasAnthropicKey && !hasAIGatewayKey && !hasOpenAIKey) {
     return {
       name: 'providerConfigured',
       status: 'unhealthy',
       message: 'No AI provider API key configured',
       details: {
+        hasClaudeOAuth,
         hasAnthropicKey,
         hasAIGatewayKey,
         hasOpenAIKey,
