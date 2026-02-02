@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "super-moltbot-sandbox",
+  "name": "supermoltworker-dab",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-06",
   "compatibility_flags": ["nodejs_compat"],
@@ -35,7 +35,7 @@
   // Container configuration for the Moltbot sandbox
   "containers": [
     {
-      "name": "super-moltbot-v2",
+      "name": "supermoltworker-v1",
       "class_name": "Sandbox",
       "image": "./Dockerfile",
       "instance_type": "standard-4",
