@@ -337,6 +337,7 @@ async function checkProviderConfigured(
   const hasAIGatewayKey = !!envAny.AI_GATEWAY_API_KEY;
   const hasOpenAIKey = !!envAny.OPENAI_API_KEY;
 
+  // Check if no auth method is configured at all
   if (!hasClaudeOAuth && !hasAnthropicKey && !hasAIGatewayKey && !hasOpenAIKey) {
     return {
       name: 'providerConfigured',
@@ -347,6 +348,23 @@ async function checkProviderConfigured(
         hasAnthropicKey,
         hasAIGatewayKey,
         hasOpenAIKey,
+      },
+    };
+  }
+
+  // Warn if CLAUDE_CODE_OAUTH_TOKEN is set but ANTHROPIC_API_KEY is not
+  // Both should be set to the same value for best compatibility
+  if (hasClaudeOAuth && !hasAnthropicKey) {
+    return {
+      name: 'providerConfigured',
+      status: 'warning',
+      message: 'CLAUDE_CODE_OAUTH_TOKEN is set but ANTHROPIC_API_KEY is missing. For best compatibility, both should be set to the same value.',
+      details: {
+        hasClaudeOAuth,
+        hasAnthropicKey,
+        hasAIGatewayKey,
+        hasOpenAIKey,
+        suggestion: 'Run: ./scripts/sync-oauth-token.sh or manually set ANTHROPIC_API_KEY to the same value',
       },
     };
   }
