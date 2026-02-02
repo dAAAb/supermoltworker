@@ -48,6 +48,15 @@ export function createAccessMiddleware(options: AccessMiddlewareOptions) {
       return next();
     }
 
+    // Skip CF Access auth if request has gateway token parameter
+    // Gateway will validate the token itself
+    const url = new URL(c.req.url);
+    const hasGatewayToken = url.searchParams.has('token');
+    if (hasGatewayToken) {
+      c.set('accessUser', { email: 'token-auth@gateway', name: 'Token User' });
+      return next();
+    }
+
     const teamDomain = c.env.CF_ACCESS_TEAM_DOMAIN;
     const expectedAud = c.env.CF_ACCESS_AUD;
 
