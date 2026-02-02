@@ -483,25 +483,6 @@ SuperMoltWorker's safe restart:
 3. Notify user that snapshot exists for rollback
 4. Execute restart
 
-### Upgrade Script Design
-
-The `scripts/upgrade-dora.sh` demonstrates best practices for upgrading existing moltbot deployments:
-
-1. **Pre-flight checks** - Verify all required secrets exist before deployment
-2. **Automatic backup** - Download existing clawdbot.json before any changes
-3. **Phased deployment** - Build → Deploy → Verify in separate steps
-4. **Post-deployment verification** - Health check after deployment completes
-
-```bash
-# Example: Required secrets check
-REQUIRED_SECRETS=("ANTHROPIC_API_KEY" "MOLTBOT_GATEWAY_TOKEN" ...)
-for secret in "${REQUIRED_SECRETS[@]}"; do
-  if ! exists "$secret"; then
-    warn "Missing required secret: $secret"
-  fi
-done
-```
-
 ### Lessons from Production
 
 Based on real-world deployment experience:
