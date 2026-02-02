@@ -106,10 +106,12 @@ npm install
 # Cost: $20/month fixed (unlimited usage)
 # Step 1: Generate OAuth token
 npx clawdbot models auth setup-token --provider anthropic
-# Step 2: Set the token (paste the sk-ant-oat01-... token when prompted)
-npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN
-# ✅ That's it! No need to set ANTHROPIC_API_KEY separately
-# The system automatically uses your OAuth token as the API key
+
+# Step 2: Set the token using our helper script (automatically syncs both secrets)
+./scripts/sync-oauth-token.sh
+# Or manually set both:
+# npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN
+# npx wrangler secret put ANTHROPIC_API_KEY  # (same value as CLAUDE_CODE_OAUTH_TOKEN)
 
 # METHOD 2: Direct Anthropic API Key (fallback)
 # Cost: Pay-per-token (expensive for heavy usage)
