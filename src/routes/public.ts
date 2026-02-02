@@ -71,4 +71,50 @@ publicRoutes.get('/assets/*', async (c) => {
   return sandbox.containerFetch(c.req.raw, MOLTBOT_PORT);
 });
 
+// POST /api/public/gateway/restart - Restart gateway with token auth (bypasses CF Access)
+// This endpoint is public but requires MOLTBOT_GATEWAY_TOKEN for security
+publicRoutes.post('/api/public/gateway/restart', async (c) => {
+  // Validate gateway token
+  const url = new URL(c.req.url);
+  const token = url.searchParams.get('token');
+  const expectedToken = c.env.MOLTBOT_GATEWAY_TOKEN;
+
+  if (!expectedToken) {
+    return c.json({ error: 'Gateway token not configured' }, 500);
+  }
+
+  if (!token || token !== expectedToken) {
+    return c.json({ error: 'Invalid or missing token' }, 401);
+  }
+
+  const sandbox = c.get('sandbox');
+
+  try {
+    // Find and kill existing gateway process
+    const existingProcess = await findExistingMoltbotProcess(sandbox);
+    if (existingProcess) {
+      console.log('[restart] Killing existing gateway process:', existingProcess.id);
+      try {
+        await existingProcess.kill();
+      } catch (killErr) {
+        console.error('[restart] Error killing process:', killErr);
+      }
+    }
+
+    return c.json({
+      success: true,
+      message: existingProcess
+        ? 'Gateway process killed, new instance starting...'
+        : 'No existing gateway found, starting new instance...',
+      killedProcess: existingProcess?.id || null,
+    });
+  } catch (err) {
+    console.error('[restart] Gateway restart failed:', err);
+    return c.json({
+      error: 'Restart failed',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    }, 500);
+  }
+});
+
 export { publicRoutes };

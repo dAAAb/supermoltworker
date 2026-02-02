@@ -110,6 +110,7 @@ export function useNotification(): UseNotificationResult {
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const baseReconnectDelay = 1000;
+  const maxReconnectDelay = 30000; // Cap at 30 seconds
 
   const connect = useCallback(() => {
     // Don't connect if already connected or connecting
@@ -209,15 +210,20 @@ export function useNotification(): UseNotificationResult {
 
       // Attempt reconnection with exponential backoff
       if (reconnectAttempts.current < maxReconnectAttempts) {
-        const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts.current);
-        console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current + 1})`);
+        reconnectAttempts.current++;
+        const delay = Math.min(
+          baseReconnectDelay * Math.pow(2, reconnectAttempts.current - 1),
+          maxReconnectDelay
+        );
+        console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current})`);
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttempts.current++;
           connect();
         }, delay);
       } else {
-        setError('Failed to connect after multiple attempts');
+        const errorMsg = `無法連接到通知服務（已嘗試 ${maxReconnectAttempts} 次）`;
+        console.error('[WS]', errorMsg);
+        setError(errorMsg);
       }
     };
   }, [connecting]);

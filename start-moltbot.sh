@@ -357,8 +357,11 @@ if (isOpenAI) {
         ]
     };
     // Include API key in provider config if set (required when using custom baseUrl)
-    if (process.env.ANTHROPIC_API_KEY) {
-        providerConfig.apiKey = process.env.ANTHROPIC_API_KEY;
+    // Priority: CLAUDE_CODE_OAUTH_TOKEN > ANTHROPIC_API_KEY
+    const apiKey = process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
+    if (apiKey) {
+        providerConfig.apiKey = apiKey;
+        console.log('[CONFIG] Using API key:', apiKey.startsWith('sk-ant-oat') ? 'OAuth token' : 'API key');
     }
     config.models.providers.anthropic = providerConfig;
     // Add models to the allowlist so they appear in /models
@@ -382,7 +385,8 @@ try {
         success: true,
         timestamp: new Date().toISOString(),
         configLoadError: configLoadError,
-        hasApiKey: !!(process.env.ANTHROPIC_API_KEY),
+        hasApiKey: !!(process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY),
+        apiKeyType: process.env.CLAUDE_CODE_OAUTH_TOKEN ? 'oauth' : (process.env.ANTHROPIC_API_KEY ? 'api-key' : 'none'),
         hasGatewayToken: !!(process.env.CLAWDBOT_GATEWAY_TOKEN),
         hasTelegram: !!(process.env.TELEGRAM_BOT_TOKEN),
         hasDiscord: !!(process.env.DISCORD_BOT_TOKEN),

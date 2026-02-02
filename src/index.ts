@@ -168,6 +168,13 @@ app.route('/', publicRoutes);
 // Mount CDP routes (uses shared secret auth via query param, not CF Access)
 app.route('/cdp', cdp);
 
+// Mount WebSocket notification routes (before auth middleware)
+// WebSocket connections cannot properly handle HTTP authentication redirects,
+// so we mount this as a public route. Security is handled by:
+// 1. Admin UI pages are still protected by CF Access
+// 2. Only authenticated users can load the admin page that opens the WebSocket
+app.route('/ws', notificationWs);
+
 // =============================================================================
 // PROTECTED ROUTES: Cloudflare Access authentication required
 // =============================================================================
@@ -235,10 +242,6 @@ app.use('/debug/*', async (c, next) => {
   return next();
 });
 app.route('/debug', debug);
-
-// Mount WebSocket notification routes (protected by Cloudflare Access)
-// SuperMoltWorker: Real-time notifications for evolution requests, conflicts, etc.
-app.route('/ws', notificationWs);
 
 // =============================================================================
 // CATCH-ALL: Proxy to Moltbot gateway
