@@ -63,4 +63,12 @@ publicRoutes.get('/_admin/assets/*', async (c) => {
   return c.env.ASSETS.fetch(new Request(assetUrl.toString(), c.req.raw));
 });
 
+// GET /assets/* - Gateway static assets (CSS, JS) - proxy to gateway without auth
+// These are loaded by the main page after token auth, but the asset requests don't carry the token
+publicRoutes.get('/assets/*', async (c) => {
+  const sandbox = c.get('sandbox');
+  // Proxy to gateway - static assets don't need auth
+  return sandbox.containerFetch(c.req.raw, MOLTBOT_PORT);
+});
+
 export { publicRoutes };
