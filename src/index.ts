@@ -67,15 +67,24 @@ function validateRequiredEnv(env: MoltbotEnv): string[] {
     missing.push('CF_ACCESS_AUD');
   }
 
-  // Check for AI Gateway or direct Anthropic configuration
-  if (env.AI_GATEWAY_API_KEY) {
+  // Check for AI authentication (priority order)
+  // 1. CLAUDE_CODE_OAUTH_TOKEN (recommended)
+  // 2. AI_GATEWAY_API_KEY (requires AI_GATEWAY_BASE_URL)
+  // 3. ANTHROPIC_API_KEY (fallback)
+  // 4. OPENAI_API_KEY (alternative provider)
+  const hasClaudeOAuth = !!env.CLAUDE_CODE_OAUTH_TOKEN;
+  const hasAIGateway = !!env.AI_GATEWAY_API_KEY;
+  const hasAnthropicKey = !!env.ANTHROPIC_API_KEY;
+  const hasOpenAIKey = !!env.OPENAI_API_KEY;
+
+  if (hasAIGateway) {
     // AI Gateway requires both API key and base URL
     if (!env.AI_GATEWAY_BASE_URL) {
       missing.push('AI_GATEWAY_BASE_URL (required when using AI_GATEWAY_API_KEY)');
     }
-  } else if (!env.ANTHROPIC_API_KEY) {
-    // Direct Anthropic access requires API key
-    missing.push('ANTHROPIC_API_KEY or AI_GATEWAY_API_KEY');
+  } else if (!hasClaudeOAuth && !hasAnthropicKey && !hasOpenAIKey) {
+    // No authentication method configured
+    missing.push('CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY');
   }
 
   return missing;
@@ -115,7 +124,7 @@ const app = new Hono<AppEnv>();
 app.use('*', async (c, next) => {
   const url = new URL(c.req.url);
   console.log(`[REQ] ${c.req.method} ${url.pathname}${url.search}`);
-  console.log(`[REQ] Has ANTHROPIC_API_KEY: ${!!c.env.ANTHROPIC_API_KEY}`);
+  console.log(`[REQ] Auth configured: CLAUDE_OAUTH=${!!c.env.CLAUDE_CODE_OAUTH_TOKEN} | ANTHROPIC=${!!c.env.ANTHROPIC_API_KEY} | AI_GATEWAY=${!!c.env.AI_GATEWAY_API_KEY} | OPENAI=${!!c.env.OPENAI_API_KEY}`);
   console.log(`[REQ] DEV_MODE: ${c.env.DEV_MODE}`);
   console.log(`[REQ] DEBUG_ROUTES: ${c.env.DEBUG_ROUTES}`);
   await next();
@@ -253,8 +262,11 @@ app.all('*', async (c) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     let hint = 'Check worker logs with: wrangler tail';
-    if (!c.env.ANTHROPIC_API_KEY) {
-      hint = 'ANTHROPIC_API_KEY is not set. Run: wrangler secret put ANTHROPIC_API_KEY';
+    // Check if any authentication method is configured
+    const hasAuth = c.env.CLAUDE_CODE_OAUTH_TOKEN || c.env.ANTHROPIC_API_KEY ||
+                    c.env.AI_GATEWAY_API_KEY || c.env.OPENAI_API_KEY;
+    if (!hasAuth) {
+      hint = 'No authentication configured. Recommended: wrangler secret put CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY)';
     } else if (errorMessage.includes('heap out of memory') || errorMessage.includes('OOM')) {
       hint = 'Gateway ran out of memory. Try again or check for memory leaks.';
     }

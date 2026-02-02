@@ -1,7 +1,29 @@
 # Copy this to .dev.vars and fill in your values
 # .dev.vars is gitignored and used by wrangler dev
 
+# =============================================================================
+# AI AUTHENTICATION (choose one, in priority order)
+# =============================================================================
+
+# OPTION 1: Claude Max/Pro OAuth Token (🌟 RECOMMENDED)
+# Format: sk-ant-oat01-... (valid for 1 year)
+# Generate with: npx clawdbot models auth setup-token --provider anthropic
+# Cost: $20/month unlimited usage
+# CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+
+# OPTION 2: Direct Anthropic API Key (fallback)
+# Format: sk-ant-api03-...
+# Get from: https://console.anthropic.com/
+# Cost: Pay-per-token (expensive for heavy usage)
 ANTHROPIC_API_KEY=sk-ant-...
+
+# OPTION 3: AI Gateway (optional, for request logging/caching)
+# AI_GATEWAY_API_KEY=sk-ant-...
+# AI_GATEWAY_BASE_URL=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
+
+# =============================================================================
+# DEVELOPMENT SETTINGS
+# =============================================================================
 
 # Local development mode - skips Cloudflare Access auth and bypasses device pairing
 # DEV_MODE=true

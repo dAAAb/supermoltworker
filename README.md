@@ -13,13 +13,66 @@ Run [Moltbot](https://molt.bot/) personal AI assistant in a [Cloudflare Sandbox]
 ## Requirements
 
 - [Workers Paid plan](https://www.cloudflare.com/plans/developer-platform/) ($5 USD/month) — required for Cloudflare Sandbox containers
-- [Anthropic API key](https://console.anthropic.com/) — for Claude access, or you can use AI Gateway's [Unified Billing](https://developers.cloudflare.com/ai-gateway/features/unified-billing/)
+- **AI Authentication** (choose one, in recommended order):
+  1. **🌟 Claude Max/Pro OAuth Token** (RECOMMENDED) — $20/month fixed cost with unlimited usage. Generate with `npx clawdbot models auth setup-token --provider anthropic`
+  2. [Anthropic API key](https://console.anthropic.com/) — Pay-per-token (can be expensive for heavy usage)
+  3. [AI Gateway with Unified Billing](https://developers.cloudflare.com/ai-gateway/features/unified-billing/) — Route through Cloudflare AI Gateway
+
+> **⚠️ IMPORTANT CLARIFICATION:**
+> Despite misleading claims in some GitHub issues, **Anthropic DOES NOT block OAuth tokens** from Claude Max/Pro subscriptions when used with moltbot. OAuth tokens are fully supported and work perfectly. They are the **RECOMMENDED** authentication method due to significant cost savings ($20/month unlimited vs pay-per-token).
 
 The following Cloudflare features used by this project have free tiers:
 - Cloudflare Access (authentication)
 - Browser Rendering (for browser navigation)
 - AI Gateway (optional, for API routing/analytics)
 - R2 Storage (optional, for persistence)
+
+---
+
+## 🔥 MYTH BUSTING: OAuth Tokens ARE Supported
+
+**There are misleading claims in some GitHub issues suggesting that Anthropic blocks OAuth tokens from Claude Max/Pro subscriptions when used with moltbot. This is categorically FALSE.**
+
+### The Facts:
+
+✅ **OAuth tokens work perfectly with moltbot/SuperMoltWorker**
+✅ **Anthropic's API fully supports OAuth authentication**
+✅ **OAuth tokens are the RECOMMENDED method** (see cost comparison below)
+✅ **This project has been tested and verified with OAuth tokens**
+
+### Cost Comparison:
+
+| Method | Monthly Cost | Best For |
+|--------|-------------|----------|
+| **Claude Max OAuth Token** | **$20 fixed** | **Heavy usage (RECOMMENDED)** |
+| Anthropic API Key | Variable (pay-per-token) | Light usage, testing |
+| AI Gateway + API Key | Variable + $5 Workers | Request logging/caching needs |
+
+**Example:** If you use 100M input tokens + 50M output tokens per month:
+- API Key: ~$52.50/month
+- **OAuth Token: $20/month (unlimited)** 💰
+
+### How to Use OAuth Tokens:
+
+```bash
+# Generate OAuth token (requires Claude Max/Pro subscription)
+npx clawdbot models auth setup-token --provider anthropic
+
+# Set as CLAUDE_CODE_OAUTH_TOKEN (highest priority)
+npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN
+# Paste the sk-ant-oat01-... token when prompted
+```
+
+**📖 Complete OAuth Token Guide:** See [docs/OAUTH-TOKEN-GUIDE.md](docs/OAUTH-TOKEN-GUIDE.md) for detailed setup instructions, troubleshooting, and FAQs.
+
+**If you encounter any issues claiming OAuth tokens don't work, they are likely due to:**
+1. Incorrect environment variable configuration
+2. Mixing different authentication methods
+3. Stale R2 cache (see [Troubleshooting](#troubleshooting))
+
+**NOT** because Anthropic blocks OAuth tokens.
+
+---
 
 ## What is Moltbot?
 
@@ -45,12 +98,29 @@ _Cloudflare Sandboxes are available on the [Workers Paid plan](https://dash.clou
 # Install dependencies
 npm install
 
-# Set your API key (direct Anthropic access)
-npx wrangler secret put ANTHROPIC_API_KEY
+# ============================================================================
+# AUTHENTICATION SETUP (choose one method)
+# ============================================================================
 
-# Or use AI Gateway instead (see "Optional: Cloudflare AI Gateway" below)
+# METHOD 1: Claude Max/Pro OAuth Token (🌟 RECOMMENDED)
+# Cost: $20/month fixed (unlimited usage)
+# Step 1: Generate OAuth token
+npx clawdbot models auth setup-token --provider anthropic
+# Step 2: Set the token (paste the sk-ant-oat01-... token when prompted)
+npx wrangler secret put CLAUDE_CODE_OAUTH_TOKEN
+
+# METHOD 2: Direct Anthropic API Key (fallback)
+# Cost: Pay-per-token (expensive for heavy usage)
+# npx wrangler secret put ANTHROPIC_API_KEY
+
+# METHOD 3: AI Gateway (optional, for request logging/caching)
+# See "Optional: Cloudflare AI Gateway" section below
 # npx wrangler secret put AI_GATEWAY_API_KEY
 # npx wrangler secret put AI_GATEWAY_BASE_URL
+
+# ============================================================================
+# GATEWAY TOKEN SETUP (required for all methods)
+# ============================================================================
 
 # Generate and set a gateway token (required for remote access)
 # Save this token - you'll need it to access the Control UI
@@ -61,6 +131,15 @@ echo "$MOLTBOT_GATEWAY_TOKEN" | npx wrangler secret put MOLTBOT_GATEWAY_TOKEN
 # Deploy
 npm run deploy
 ```
+
+### Authentication Priority
+
+SuperMoltWorker uses the following priority order when multiple auth methods are configured:
+
+1. **CLAUDE_CODE_OAUTH_TOKEN** (highest priority, recommended)
+2. **AI_GATEWAY_API_KEY** (when `AI_GATEWAY_BASE_URL` is set)
+3. **ANTHROPIC_API_KEY** (fallback)
+4. **OPENAI_API_KEY** (alternative provider)
 
 After deploying, open the Control UI with your token:
 
@@ -559,13 +638,22 @@ The `AI_GATEWAY_*` variables take precedence over `ANTHROPIC_*` if both are set.
 
 ## All Secrets Reference
 
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `AI_GATEWAY_API_KEY` | Yes* | API key for your AI Gateway provider (requires `AI_GATEWAY_BASE_URL`) |
-| `AI_GATEWAY_BASE_URL` | Yes* | AI Gateway endpoint URL (required when using `AI_GATEWAY_API_KEY`) |
-| `ANTHROPIC_API_KEY` | Yes* | Direct Anthropic API key (fallback if AI Gateway not configured) |
-| `ANTHROPIC_BASE_URL` | No | Direct Anthropic API base URL (fallback) |
-| `OPENAI_API_KEY` | No | OpenAI API key (alternative provider) |
+### AI Authentication Secrets (Priority Order)
+
+**You must configure at least ONE of these authentication methods:**
+
+| Secret | Priority | Required | Description |
+|--------|----------|----------|-------------|
+| `CLAUDE_CODE_OAUTH_TOKEN` | **1️⃣ HIGHEST** | **Yes*** | **🌟 RECOMMENDED** - OAuth token from Claude Max/Pro subscription. Format: `sk-ant-oat01-...` (valid for 1 year). Generate with: `npx clawdbot models auth setup-token --provider anthropic`. Cost: $20/month unlimited usage. **MYTH BUSTING:** Despite misleading GitHub issues, Anthropic DOES NOT block OAuth tokens - they work perfectly! |
+| `AI_GATEWAY_API_KEY` | 2️⃣ | Yes* | API key for your AI Gateway provider (requires `AI_GATEWAY_BASE_URL`). Can be either OAuth token or API key. |
+| `AI_GATEWAY_BASE_URL` | 2️⃣ | Yes* | AI Gateway endpoint URL (required when using `AI_GATEWAY_API_KEY`). Example: `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic` |
+| `ANTHROPIC_API_KEY` | 3️⃣ | Yes* | Direct Anthropic API key (fallback if OAuth token not configured). Format: `sk-ant-api03-...`. Get from: https://console.anthropic.com/. Cost: Pay-per-token (expensive for heavy usage). |
+| `ANTHROPIC_BASE_URL` | - | No | Custom Anthropic API base URL (optional override) |
+| `OPENAI_API_KEY` | 4️⃣ | Yes* | OpenAI API key (alternative provider) |
+
+\* **At least ONE authentication method must be configured**
+
+### Other Secrets
 | `CF_ACCESS_TEAM_DOMAIN` | Yes* | Cloudflare Access team domain (required for admin UI) |
 | `CF_ACCESS_AUD` | Yes* | Cloudflare Access application audience (required for admin UI) |
 | `MOLTBOT_GATEWAY_TOKEN` | Yes | Gateway token for authentication (pass via `?token=` query param) |

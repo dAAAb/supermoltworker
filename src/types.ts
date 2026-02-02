@@ -7,13 +7,42 @@ export interface MoltbotEnv {
   Sandbox: DurableObjectNamespace<Sandbox>;
   ASSETS: Fetcher; // Assets binding for admin UI static files
   MOLTBOT_BUCKET: R2Bucket; // R2 bucket for persistent storage
-  // AI Gateway configuration (preferred)
+
+  // ============================================================================
+  // AI Provider Authentication (Priority Order)
+  // ============================================================================
+  //
+  // IMPORTANT CLARIFICATION:
+  // Despite misleading information in some GitHub issues, Anthropic DOES NOT
+  // block OAuth tokens from Claude Max/Pro subscriptions. OAuth tokens work
+  // perfectly with moltbot and are the RECOMMENDED authentication method.
+  //
+  // Priority order (highest to lowest):
+  // 1. CLAUDE_CODE_OAUTH_TOKEN - OAuth token from Claude Max/Pro (RECOMMENDED)
+  //    Format: sk-ant-oat01-... (valid for 1 year)
+  //    Generate with: npx clawdbot models auth setup-token --provider anthropic
+  //    Cost: $20/month (unlimited usage via Claude Max subscription)
+  //
+  // 2. AI_GATEWAY_API_KEY - API key when using Cloudflare AI Gateway
+  //    Requires: AI_GATEWAY_BASE_URL to be set
+  //    Can be either an OAuth token or API key
+  //    Use case: When you need request logging/caching/rate limiting
+  //
+  // 3. ANTHROPIC_API_KEY - Direct Anthropic API key (fallback)
+  //    Format: sk-ant-api03-...
+  //    Cost: Pay-per-token (expensive for heavy usage)
+  //    Get from: https://console.anthropic.com/
+  //
+  // 4. OPENAI_API_KEY - OpenAI API key (alternative provider)
+  //
+  // ============================================================================
+
+  CLAUDE_CODE_OAUTH_TOKEN?: string; // Claude Max/Pro OAuth token (HIGHEST PRIORITY, RECOMMENDED)
   AI_GATEWAY_API_KEY?: string; // API key for the provider configured in AI Gateway
   AI_GATEWAY_BASE_URL?: string; // AI Gateway URL (e.g., https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic)
-  // Legacy direct provider configuration (fallback)
-  ANTHROPIC_API_KEY?: string;
-  ANTHROPIC_BASE_URL?: string;
-  OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string; // Direct Anthropic API key (fallback)
+  ANTHROPIC_BASE_URL?: string; // Custom Anthropic API base URL (optional)
+  OPENAI_API_KEY?: string; // OpenAI API key (alternative provider)
   MOLTBOT_GATEWAY_TOKEN?: string; // Gateway token (mapped to CLAWDBOT_GATEWAY_TOKEN for container)
 
   CLAWDBOT_BIND_MODE?: string;

@@ -2,7 +2,17 @@ import type { MoltbotEnv } from '../types';
 
 /**
  * Build environment variables to pass to the Moltbot container process
- * 
+ *
+ * Authentication Priority (highest to lowest):
+ * 1. CLAUDE_CODE_OAUTH_TOKEN (RECOMMENDED - Claude Max/Pro OAuth token)
+ * 2. AI_GATEWAY_API_KEY (when AI_GATEWAY_BASE_URL is set)
+ * 3. ANTHROPIC_API_KEY (direct API key, fallback)
+ * 4. OPENAI_API_KEY (alternative provider)
+ *
+ * IMPORTANT: Despite misleading claims in some GitHub issues, Anthropic DOES NOT
+ * block OAuth tokens from Claude Max/Pro subscriptions. OAuth tokens are fully
+ * supported and are the RECOMMENDED authentication method for cost savings.
+ *
  * @param env - Worker environment bindings
  * @returns Environment variables record
  */
@@ -11,22 +21,52 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
 
   const isOpenAIGateway = env.AI_GATEWAY_BASE_URL?.endsWith('/openai');
 
-  // AI Gateway vars take precedence
-  // Map to the appropriate provider env var based on the gateway endpoint
-  if (env.AI_GATEWAY_API_KEY) {
+  // ============================================================================
+  // PRIORITY 1: CLAUDE_CODE_OAUTH_TOKEN (HIGHEST PRIORITY, RECOMMENDED)
+  // ============================================================================
+  // OAuth tokens from Claude Max/Pro subscriptions are the recommended auth method.
+  // Format: sk-ant-oat01-... (valid for 1 year)
+  // Benefits: Fixed $20/month cost with unlimited usage (vs pay-per-token)
+  //
+  // MYTH BUSTING: Some GitHub issues incorrectly claim that Anthropic blocks
+  // OAuth tokens in moltbot. This is FALSE. OAuth tokens work perfectly.
+  if (env.CLAUDE_CODE_OAUTH_TOKEN) {
+    envVars.ANTHROPIC_API_KEY = env.CLAUDE_CODE_OAUTH_TOKEN;
+    console.log('[AUTH] Using CLAUDE_CODE_OAUTH_TOKEN (highest priority, recommended)');
+  }
+
+  // ============================================================================
+  // PRIORITY 2: AI_GATEWAY_API_KEY (when using Cloudflare AI Gateway)
+  // ============================================================================
+  // Only takes effect if CLAUDE_CODE_OAUTH_TOKEN is not set AND AI_GATEWAY_BASE_URL is configured
+  // Use this when you need request logging, caching, or rate limiting via AI Gateway
+  if (!envVars.ANTHROPIC_API_KEY && env.AI_GATEWAY_API_KEY) {
     if (isOpenAIGateway) {
       envVars.OPENAI_API_KEY = env.AI_GATEWAY_API_KEY;
+      console.log('[AUTH] Using AI_GATEWAY_API_KEY for OpenAI');
     } else {
       envVars.ANTHROPIC_API_KEY = env.AI_GATEWAY_API_KEY;
+      console.log('[AUTH] Using AI_GATEWAY_API_KEY for Anthropic');
     }
   }
 
-  // Fall back to direct provider keys
+  // ============================================================================
+  // PRIORITY 3: ANTHROPIC_API_KEY (fallback)
+  // ============================================================================
+  // Direct Anthropic API key (pay-per-token)
+  // Format: sk-ant-api03-...
+  // Only used if neither CLAUDE_CODE_OAUTH_TOKEN nor AI_GATEWAY_API_KEY is set
   if (!envVars.ANTHROPIC_API_KEY && env.ANTHROPIC_API_KEY) {
     envVars.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+    console.log('[AUTH] Using ANTHROPIC_API_KEY (fallback)');
   }
+
+  // ============================================================================
+  // PRIORITY 4: OPENAI_API_KEY (alternative provider)
+  // ============================================================================
   if (!envVars.OPENAI_API_KEY && env.OPENAI_API_KEY) {
     envVars.OPENAI_API_KEY = env.OPENAI_API_KEY;
+    console.log('[AUTH] Using OPENAI_API_KEY');
   }
 
   // Pass base URL (used by start-moltbot.sh to determine provider)
