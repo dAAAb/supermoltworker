@@ -60,7 +60,7 @@
   "r2_buckets": [
     {
       "binding": "MOLTBOT_BUCKET",
-      "bucket_name": "super-moltbot-data",
+      "bucket_name": "supermoltworker-dab-data",
     },
   ],
   // Cron trigger to sync moltbot data to R2 every 5 minutes
