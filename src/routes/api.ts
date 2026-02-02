@@ -257,7 +257,7 @@ adminApi.post('/storage/sync', async (c) => {
     });
   } else {
     // Different status codes based on reason
-    let status = 500;
+    let status: 400 | 409 | 500 = 500;
     if (result.error?.includes('not configured')) {
       status = 400;
     } else if (result.blocked) {

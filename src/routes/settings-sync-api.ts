@@ -33,7 +33,7 @@ settingsSyncApi.get('/sync-status', async (c) => {
       for (const item of category) {
         if (item.isSensitive && item.configValue) {
           // Keep masked version, remove raw value from response
-          delete (item as Record<string, unknown>).configValueRaw;
+          delete (item as unknown as Record<string, unknown>).configValueRaw;
         }
       }
     }

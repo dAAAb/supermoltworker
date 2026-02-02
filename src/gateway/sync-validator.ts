@@ -569,10 +569,11 @@ export async function getSyncStatus(
   }
 
   // Determine if sync is safe
+  // Safe if: (score diff acceptable AND local has channels) OR remote has no channels
   const scoreDiff = localScore.score - remoteScore.score;
   const config = getSyncValidatorConfig(env);
-  const syncSafe = scoreDiff >= -config.warningScoreDiff &&
-                   localScore.breakdown.hasChannels > 0 ||
+  const syncSafe = (scoreDiff >= -config.warningScoreDiff &&
+                    localScore.breakdown.hasChannels > 0) ||
                    remoteScore.breakdown.hasChannels === 0;
 
   return {

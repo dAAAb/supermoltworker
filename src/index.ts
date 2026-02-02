@@ -38,11 +38,30 @@ function transformErrorMessage(message: string, host: string): string {
   if (message.includes('gateway token missing') || message.includes('gateway token mismatch')) {
     return `Invalid or missing token. Visit https://${host}?token={REPLACE_WITH_YOUR_TOKEN}`;
   }
-  
+
   if (message.includes('pairing required')) {
     return `Pairing required. Visit https://${host}/_admin/`;
   }
-  
+
+  // OAuth / API key authentication errors
+  if (message.includes('401') || message.includes('Unauthorized') ||
+      message.includes('invalid_api_key') || message.includes('authentication_error')) {
+    console.error('[AUTH] API authentication failed - token may be expired or revoked');
+    return `API 認證失敗。請檢查 CLAUDE_CODE_OAUTH_TOKEN 或 ANTHROPIC_API_KEY 是否有效（可能已過期或被撤銷）。`;
+  }
+
+  // Rate limiting errors
+  if (message.includes('429') || message.includes('rate_limit') || message.includes('Too Many Requests')) {
+    console.warn('[AUTH] API rate limit hit');
+    return `API 請求頻率超過限制，請稍後再試。`;
+  }
+
+  // Credit/billing errors
+  if (message.includes('insufficient_quota') || message.includes('billing') || message.includes('credit')) {
+    console.error('[AUTH] API billing/quota issue');
+    return `API 額度不足或帳單問題，請檢查您的 Anthropic 帳戶狀態。`;
+  }
+
   return message;
 }
 
@@ -410,14 +429,32 @@ async function scheduled(
   const options = buildSandboxOptions(env);
   const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
 
-  // 1. Backup sync to R2
+  // 1. Backup sync to R2 with failure tracking
   console.log('[cron] Starting backup sync to R2...');
   const result = await syncToR2(sandbox, env);
 
   if (result.success) {
     console.log('[cron] Backup sync completed successfully at', result.lastSync);
+    // Record success to reset failure counter
+    try {
+      const { recordSyncSuccess } = await import('./gateway/sync-alert');
+      await recordSyncSuccess(sandbox, env);
+    } catch (err) {
+      console.warn('[cron] Failed to record sync success:', err);
+    }
   } else {
     console.error('[cron] Backup sync failed:', result.error, result.details || '');
+    // Record failure and check if alert threshold exceeded
+    try {
+      const { recordSyncFailure, sendSyncFailureAlert } = await import('./gateway/sync-alert');
+      const errorMsg = `${result.error}${result.details ? ': ' + result.details : ''}`;
+      const { shouldAlert, consecutiveFailures } = await recordSyncFailure(sandbox, env, errorMsg);
+      if (shouldAlert) {
+        sendSyncFailureAlert(consecutiveFailures, errorMsg);
+      }
+    } catch (err) {
+      console.error('[cron] Failed to track sync failure:', err);
+    }
   }
 
   // 2. Check for env sync reminders (D2 feature)

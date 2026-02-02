@@ -63,6 +63,9 @@ function removeNestedField(obj: Record<string, unknown>, path: string): boolean 
   return false;
 }
 
+/** Maximum retries for sanitization write operation */
+const SANITIZE_MAX_RETRIES = 3;
+
 /**
  * Sanitize the R2 COPY of clawdbot.json AFTER syncing.
  * This removes sensitive fields from the R2 backup WITHOUT touching the live config.
@@ -70,11 +73,15 @@ function removeNestedField(obj: Record<string, unknown>, path: string): boolean 
  * IMPORTANT: We sanitize the R2 copy, NOT the live config!
  * The live config needs the API keys to function.
  *
+ * Uses atomic write with retry to ensure consistency.
+ *
  * @param sandbox - The sandbox instance
  * @returns List of fields that were sanitized
  */
 async function sanitizeR2ConfigAfterSync(sandbox: Sandbox): Promise<string[]> {
   const r2ConfigPath = `${R2_MOUNT_PATH}/clawdbot/clawdbot.json`;
+  const tempFile = '/tmp/sanitized-r2-config.json';
+  const backupFile = `${r2ConfigPath}.bak`;
   const sanitized: string[] = [];
 
   try {
@@ -88,37 +95,110 @@ async function sanitizeR2ConfigAfterSync(sandbox: Sandbox): Promise<string[]> {
       return [];
     }
 
-    const config = JSON.parse(readLogs.stdout.trim());
+    let config;
+    try {
+      config = JSON.parse(readLogs.stdout.trim());
+    } catch (parseErr) {
+      console.error('[Sync] Failed to parse R2 config for sanitization:', parseErr);
+      return [];
+    }
 
     // Remove env-only fields from the R2 copy
     for (const field of ENV_ONLY_FIELDS) {
       if (removeNestedField(config, field)) {
         sanitized.push(field);
-        console.log(`[Sync] Sanitized R2 field: ${field}`);
+        console.log(`[Sync] Marked for sanitization: ${field}`);
       }
     }
 
-    if (sanitized.length > 0) {
-      // Write sanitized config back to R2 (NOT to live config!)
-      const sanitizedJson = JSON.stringify(config, null, 2);
-      const tempFile = '/tmp/sanitized-r2-config.json';
-      const writeProc = await sandbox.startProcess(
-        `cat > ${tempFile} << 'SANITIZE_EOF'\n${sanitizedJson}\nSANITIZE_EOF`
-      );
-      await waitForProcess(writeProc, 5000);
-
-      // Replace R2 copy with sanitized version
-      const mvProc = await sandbox.startProcess(`mv ${tempFile} ${r2ConfigPath}`);
-      await waitForProcess(mvProc, 5000);
-
-      console.log(`[Sync] Sanitized ${sanitized.length} fields in R2 copy`);
+    if (sanitized.length === 0) {
+      console.log('[Sync] No sensitive fields to sanitize');
+      return [];
     }
+
+    // Write sanitized config with atomic operation and retry
+    const sanitizedJson = JSON.stringify(config, null, 2);
+    let writeSuccess = false;
+
+    for (let attempt = 1; attempt <= SANITIZE_MAX_RETRIES; attempt++) {
+      try {
+        // Step 1: Create backup of current R2 config
+        const backupProc = await sandbox.startProcess(`cp ${r2ConfigPath} ${backupFile} 2>/dev/null || true`);
+        await waitForProcess(backupProc, 5000);
+
+        // Step 2: Write sanitized content to temp file
+        // Use heredoc with unique delimiter to avoid issues with JSON content
+        const writeProc = await sandbox.startProcess(
+          `cat > ${tempFile} << 'SANITIZE_CONFIG_EOF'\n${sanitizedJson}\nSANITIZE_CONFIG_EOF`
+        );
+        await waitForProcess(writeProc, 5000);
+
+        // Step 3: Verify temp file was written correctly
+        const verifyProc = await sandbox.startProcess(`test -s ${tempFile} && echo "ok"`);
+        await waitForProcess(verifyProc, 3000);
+        const verifyLogs = await verifyProc.getLogs();
+        if (!verifyLogs.stdout?.includes('ok')) {
+          throw new Error('Temp file verification failed - file empty or missing');
+        }
+
+        // Step 4: Atomic move
+        const mvProc = await sandbox.startProcess(`mv ${tempFile} ${r2ConfigPath}`);
+        await waitForProcess(mvProc, 5000);
+
+        // Step 5: Verify final file
+        const finalVerifyProc = await sandbox.startProcess(`test -s ${r2ConfigPath} && echo "ok"`);
+        await waitForProcess(finalVerifyProc, 3000);
+        const finalVerifyLogs = await finalVerifyProc.getLogs();
+        if (!finalVerifyLogs.stdout?.includes('ok')) {
+          throw new Error('Final file verification failed');
+        }
+
+        // Success - clean up backup
+        await sandbox.startProcess(`rm -f ${backupFile}`);
+        writeSuccess = true;
+        console.log(`[Sync] Successfully sanitized ${sanitized.length} fields in R2 copy`);
+        break;
+
+      } catch (writeErr) {
+        console.error(`[Sync] Sanitization write attempt ${attempt} failed:`, writeErr);
+
+        // Try to restore from backup if the original file is damaged
+        if (attempt === SANITIZE_MAX_RETRIES) {
+          console.error('[Sync] All sanitization attempts failed, attempting restore from backup');
+          try {
+            const restoreProc = await sandbox.startProcess(
+              `test -f ${backupFile} && mv ${backupFile} ${r2ConfigPath}`
+            );
+            await waitForProcess(restoreProc, 5000);
+            console.log('[Sync] Restored R2 config from backup (unsanitized)');
+          } catch (restoreErr) {
+            console.error('[Sync] Failed to restore backup:', restoreErr);
+          }
+        }
+
+        // Wait before retry
+        if (attempt < SANITIZE_MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 500 * attempt));
+        }
+      }
+    }
+
+    // Clean up temp files
+    await sandbox.startProcess(`rm -f ${tempFile} ${backupFile} 2>/dev/null || true`);
+
+    if (!writeSuccess) {
+      console.error('[Sync] WARNING: Sanitization failed - sensitive data may remain in R2 backup');
+      return [];
+    }
+
+    return sanitized;
+
   } catch (err) {
     console.error('[Sync] Failed to sanitize R2 config:', err);
-    // Continue even if sanitization fails - the sync already succeeded
+    // Clean up any temp files
+    await sandbox.startProcess(`rm -f ${tempFile} ${backupFile} 2>/dev/null || true`);
+    return [];
   }
-
-  return sanitized;
 }
 
 /**

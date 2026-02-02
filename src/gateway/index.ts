@@ -109,3 +109,10 @@ export {
   type EvolutionRequest,
   type EvolutionMode,
 } from './evolution';
+export {
+  recordSyncSuccess,
+  recordSyncFailure,
+  getSyncAlertStatus,
+  sendSyncFailureAlert,
+  type SyncStatus,
+} from './sync-alert';
